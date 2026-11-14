@@ -68,10 +68,27 @@ namespace GravityWells.Core
         public const float DragLiftWorldUnits = 0f;         // lift of a dragged well above the finger; to be judged on a phone
         public const float PlaybackSpeed = 1f;
         public const float FastPlaybackSpeed = 3f;          // a tap during a flight
-        public const float WinHoldSeconds = 0.9f;           // the pause on the finished flight before the result card
+        public const float WinHoldSeconds = 1.3f;           // the pause on the finished flight before the result card
         public const int PathDotStride = 6;                 // one dot every this many steps (0.05 s)
         public const float PathDotRadius = 0.0055f;
         public const float WellViewRadius = 0.11f;          // the pull ring drawn around a well
+
+        // --- Feel (Phase 3) ---
+        public const float PathEaseSeconds = 0.05f;          // the line eases to its new shape after a drop instead of snapping
+        public const float PathFlowStepsPerSecond = 36f;     // how fast the dots drift along the line (steps of the buffer per second)
+        public const float LaunchChargeSeconds = 0.32f;      // the ship gathers on the pad before it flies
+        public const int FinalApproachSlowSteps = 18;        // the last stretch of a winning flight: 0.15 s of flight...
+        public const float FinalApproachSpeedFactor = 0.5f;  // ...played at half speed, so about 0.3 s of watching
+        public const float GateFlashSeconds = 0.35f;
+        public const float GatePopSeconds = 0.22f;
+        public const float WellSettleSeconds = 0.28f;
+        public const float WellRingPeriodSeconds = 1.6f;     // one ring travelling in (or out) takes this long
+        public const float BurstSeconds = 0.8f;
+        public const float WinPingSpacingSeconds = 0.12f;    // gates ping one after another when a level is won
+        public const int FailsBeforeHintPulse = 3;           // the hint button pulses once after this many failed launches
+        public const int TrailDots = 26;
+        public const float TrailDotSpacingSeconds = 0.028f;  // of flight time between trail dots
+        public const float MusicLoudnessRms = 0.2f;          // the shared loudness every track is levelled to
 
         // --- Meta ---
         public const float ThemeCrossfadeDuration = 0.3f;

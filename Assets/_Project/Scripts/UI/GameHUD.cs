@@ -92,6 +92,29 @@ namespace GravityWells.UI
 
         public RectTransform AttractorSlot => _attractorSlot;
 
+        // The hint button swells once: after a few misses, a nudge toward the help that is there.
+        private float _hintPulseAge = -1f;
+        private const float HintPulseSeconds = 0.8f;
+
+        public void PulseHint() => _hintPulseAge = 0f;
+
+        // Call every frame, with unscaled time (the HUD is live while the game is paused).
+        public void Tick(float unscaledSeconds)
+        {
+            if (_hintPulseAge < 0f)
+            {
+                return;
+            }
+            _hintPulseAge += unscaledSeconds;
+            float scale = 1f + 0.32f * FeelCurves.Bump(_hintPulseAge, HintPulseSeconds);
+            _hint.transform.localScale = new Vector3(scale, scale, 1f);
+            if (_hintPulseAge >= HintPulseSeconds)
+            {
+                _hintPulseAge = -1f;
+                _hint.transform.localScale = Vector3.one;
+            }
+        }
+
         // Set by GameManager; only ever called in a development build.
         public Action SecretTapped { get; set; }
 

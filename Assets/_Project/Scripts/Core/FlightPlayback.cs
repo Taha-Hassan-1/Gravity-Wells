@@ -4,10 +4,14 @@ namespace GravityWells.Core
 {
     // Plays a finished Trajectory back in real time. It only ever reads the buffer the preview drew, so the
     // ship cannot leave the line the player was shown; nothing is simulated here.
+    //
+    // The one liberty it takes is with time, never with place: on a winning flight the last stretch before the
+    // goal plays at half speed, so the moment the ship arrives can be seen.
     public sealed class FlightPlayback
     {
         private Trajectory _trajectory;
-        private float _position;   // in steps; the whole part picks the segment, the fraction is how far along it
+        private float _position;      // in steps; the whole part picks the segment, the fraction is how far along it
+        private float _slowFrom;      // the step where the slow final approach begins (beyond the end: no slow-down)
 
         public float Speed { get; private set; } = GameConfig.PlaybackSpeed;
         public bool Finished { get; private set; } = true;
@@ -19,12 +23,22 @@ namespace GravityWells.Core
         public int Step => (int)_position;
         public FlightOutcome Outcome => _trajectory != null ? _trajectory.Outcome : FlightOutcome.TimedOut;
 
+        // How fast the ship is really moving at this moment, in field widths per second, for the sound of the
+        // flight. It is measured on the buffer, so the whoosh follows the ship through every bend.
+        public float Velocity { get; private set; }
+
+        // True while the slow final approach is playing.
+        public bool InFinalApproach => !Finished && _position >= _slowFrom;
+
         public void Begin(Trajectory trajectory)
         {
             _trajectory = trajectory;
             _position = 0f;
             Speed = GameConfig.PlaybackSpeed;
             Finished = trajectory.Count < 2;
+            _slowFrom = trajectory.Outcome == FlightOutcome.Won
+                ? Mathf.Max(0f, trajectory.Count - 1 - GameConfig.FinalApproachSlowSteps)
+                : float.MaxValue;
             Place();
         }
 
@@ -38,7 +52,28 @@ namespace GravityWells.Core
                 return;
             }
 
-            _position += seconds * GameConfig.StepsPerSecond * Speed;
+            float advance = seconds * GameConfig.StepsPerSecond * Speed;
+            if (_position < _slowFrom)
+            {
+                float room = _slowFrom - _position;
+                if (advance <= room)
+                {
+                    _position += advance;
+                    advance = 0f;
+                }
+                else
+                {
+                    // Cross into the slow stretch part-way through this frame: the rest of it counts at half.
+                    _position = _slowFrom;
+                    advance = (advance - room) * GameConfig.FinalApproachSpeedFactor;
+                }
+            }
+            else
+            {
+                advance *= GameConfig.FinalApproachSpeedFactor;
+            }
+            _position += advance;
+
             float last = _trajectory.Count - 1;
             if (_position >= last)
             {
@@ -103,6 +138,7 @@ namespace GravityWells.Core
             float dx = to.x - from.x;
             float dy = to.y - from.y;
             float length = Mathf.Sqrt(dx * dx + dy * dy);
+            Velocity = length * GameConfig.StepsPerSecond;
             if (length > 1e-9f)
             {
                 Heading = new Vector2(dx / length, dy / length);

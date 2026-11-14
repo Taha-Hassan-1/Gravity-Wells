@@ -4,8 +4,9 @@ using GravityWells.Core;
 
 namespace GravityWells.Game
 {
-    // The dotted line: the exact flight, drawn as one mesh of small discs. Its vertices are rewritten in
-    // place whenever the trajectory changes, from arrays allocated once, so dragging a well allocates nothing.
+    // The dotted line: the exact flight, drawn as one mesh of small discs. The dots drift along it, in the
+    // direction the ship will travel, so even before anything is solved the line feels alive under the
+    // finger. Its vertices are rewritten in place from arrays allocated once, so dragging allocates nothing.
     public sealed class PathView
     {
         public enum PathState
@@ -16,7 +17,8 @@ namespace GravityWells.Game
 
         private const int OrderPath = 10;
         private const int CrashDots = 7;                  // how many dots at the end turn to the warning colour
-        private static readonly int MaxDots = GameConfig.TrajectoryCapacity / GameConfig.PathDotStride + 2;
+        private const float EdgeFadeStrides = 1.6f;       // dots fade in at the start and out before the end over this many dot spacings
+        private static readonly int MaxDots = GameConfig.TrajectoryCapacity / GameConfig.PathDotStride + 3;
 
         private readonly Mesh _mesh;
         private readonly Vector3[] _vertices = new Vector3[MaxDots * 4];
@@ -25,10 +27,12 @@ namespace GravityWells.Game
         private readonly MeshRenderer _renderer;
 
         private ViewColors _palette;
-        private Trajectory _last;
+        private Vector2[] _points;
+        private int _count;
+        private FlightOutcome _outcome;
         private PathState _state;
-        private int _dots;
-        private int _crashFrom = int.MaxValue;
+        private float _phase;          // how far the dots have drifted along, in steps (0 to the dot spacing)
+        private bool _hasPath;
 
         public PathView(Transform parent)
         {
@@ -75,69 +79,122 @@ namespace GravityWells.Game
             set => _renderer.enabled = value;
         }
 
+        public int DotCount { get; private set; }
+
         public void ApplyTheme(ViewColors colors)
         {
             _palette = colors;
-            if (_last != null)
+            if (_hasPath)
             {
-                Show(_last, _state);
+                Layout();
             }
         }
 
-        // Draws the buffer. Everything up to the outcome point is in it and nothing past it, so the line
+        // Draws a flight buffer. Everything up to the outcome point is in it and nothing past it, so the line
         // ends exactly where the flight does.
         public void Show(Trajectory trajectory, PathState state)
         {
-            _last = trajectory;
-            _state = state;
+            Show(trajectory.Points, trajectory.Count, trajectory.Outcome, state);
+        }
 
-            bool crash = trajectory.Outcome == FlightOutcome.HitWell || trajectory.Outcome == FlightOutcome.HitAsteroid;
-            int stride = GameConfig.PathDotStride;
-            int lastIndex = trajectory.Count - 1;
+        // The same, from any array of points (the eased line during a drop's glide).
+        public void Show(Vector2[] points, int count, FlightOutcome outcome, PathState state)
+        {
+            _points = points;
+            _count = count;
+            _outcome = outcome;
+            _state = state;
+            _hasPath = count > 1;
+            Layout();
+        }
+
+        // Drifts the dots along the line. Call every frame (any time scale: it is a decoration).
+        public void Tick(float seconds)
+        {
+            if (!_hasPath)
+            {
+                return;
+            }
+            _phase += GameConfig.PathFlowStepsPerSecond * seconds;
+            float stride = GameConfig.PathDotStride;
+            if (_phase >= stride)
+            {
+                _phase -= stride * Mathf.Floor(_phase / stride);
+            }
+            Layout();
+        }
+
+        // Dots sit every PathDotStride steps along the buffer, shifted by the drift; the end of the line is
+        // always marked by a larger dot, which does not drift.
+        private void Layout()
+        {
+            if (!_hasPath)
+            {
+                _mesh.SetIndices(_indices, 0, 0, MeshTopology.Triangles, 0, false);
+                DotCount = 0;
+                return;
+            }
+
+            float stride = GameConfig.PathDotStride;
+            float last = _count - 1;
+            float fade = stride * EdgeFadeStrides;
+            bool crash = _outcome == FlightOutcome.HitWell || _outcome == FlightOutcome.HitAsteroid;
+            float crashFrom = last - CrashDots * stride;
+
+            Color body = _state == PathState.Winning ? _palette.Good : ViewColors.WithAlpha(_palette.Neutral, 0.8f);
+            Color warn = _palette.Warning;
 
             int dots = 0;
-            for (int i = 0; i <= lastIndex; i += stride)
+            for (float position = _phase; position < last - stride * 0.5f && dots < MaxDots - 1; position += stride)
             {
-                SetDot(dots, trajectory.Points[i], GameConfig.PathDotRadius);
-                dots++;
-            }
-            if ((lastIndex % stride) != 0)
-            {
-                SetDot(dots, trajectory.Points[lastIndex], GameConfig.PathDotRadius * 1.6f); // the end is always marked
+                Vector2 centre = PointAt(position);
+                float alpha = Mathf.Clamp01(position / fade) * Mathf.Clamp01((last - position) / fade);
+                bool warning = crash && position >= crashFrom;
+                SetDot(dots, centre, GameConfig.PathDotRadius, ViewColors.ToVertexColor(Faded(warning ? warn : body, alpha)));
                 dots++;
             }
 
-            _crashFrom = crash ? dots - CrashDots : int.MaxValue;
-            Color body = state == PathState.Winning ? _palette.Good : ViewColors.WithAlpha(_palette.Neutral, 0.8f);
-            Color32 body32 = ViewColors.ToVertexColor(body);
-            Color32 warn32 = ViewColors.ToVertexColor(_palette.Warning);
-            for (int d = 0; d < dots; d++)
-            {
-                Color32 c = d >= _crashFrom ? warn32 : body32;
-                int v = d * 4;
-                _colors[v] = c;
-                _colors[v + 1] = c;
-                _colors[v + 2] = c;
-                _colors[v + 3] = c;
-            }
+            // The end marker, always whole.
+            Vector2 end = _points[_count - 1];
+            SetDot(dots, end, GameConfig.PathDotRadius * 1.6f, ViewColors.ToVertexColor(crash ? warn : body));
+            dots++;
 
-            _dots = dots;
-            // Whole arrays, so the vertex count never changes; only the dots in use are drawn, by cutting the
-            // index range (a few hundred vertices cost nothing, and a fixed layout keeps this allocation-free).
+            DotCount = dots;
             _mesh.SetVertices(_vertices);
             _mesh.SetColors(_colors);
             _mesh.SetIndices(_indices, 0, dots * 6, MeshTopology.Triangles, 0, false);
         }
 
-        public int DotCount => _dots;
+        private Vector2 PointAt(float position)
+        {
+            int index = (int)position;
+            if (index >= _count - 1)
+            {
+                return _points[_count - 1];
+            }
+            float t = position - index;
+            Vector2 a = _points[index];
+            Vector2 b = _points[index + 1];
+            return new Vector2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+        }
 
-        private void SetDot(int index, Vector2 centre, float radius)
+        private static Color Faded(Color color, float alpha)
+        {
+            color.a *= alpha;
+            return color;
+        }
+
+        private void SetDot(int index, Vector2 centre, float radius, Color32 color)
         {
             int v = index * 4;
             _vertices[v + 0] = new Vector3(centre.x - radius, centre.y - radius, 0f);
             _vertices[v + 1] = new Vector3(centre.x - radius, centre.y + radius, 0f);
             _vertices[v + 2] = new Vector3(centre.x + radius, centre.y + radius, 0f);
             _vertices[v + 3] = new Vector3(centre.x + radius, centre.y - radius, 0f);
+            _colors[v] = color;
+            _colors[v + 1] = color;
+            _colors[v + 2] = color;
+            _colors[v + 3] = color;
         }
     }
 }

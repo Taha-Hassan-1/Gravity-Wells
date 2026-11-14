@@ -1,6 +1,6 @@
 # Gravity Wells — Test Cases
 
-Last executed: 2026-11-14 · Build: branch `Phase2-PlayableBoard` · Unity 6000.3.15f1 · EditMode suite 362/362 passing (headless, including the 4 Play Mode smoke tests).
+Last executed: 2026-11-14 · Build: branch `Phase3-Feel` · Unity 6000.3.15f1 · EditMode suite 435/435 passing (headless, including the 5 Play Mode smoke tests).
 
 **How a case is verified** (the *Via* column):
 
@@ -102,6 +102,33 @@ Measured 2026-11-14 in the Editor. "Play" rows run the real `Bootstrap.unity` in
 | PERF-01 | 60 fps and zero GC per frame while dragging a well on a 4-well, 5-gate, 4-asteroid level | Zero allocation; 60 fps on a mid-range phone | Auto for allocation (`Simulate` and `TryPlan` allocate 0 bytes); Device for fps | allocation ✅; **fps and Profiler number ⏳ not measured** |
 
 Fixes found by looking at the renders: all text was missing (TextMesh Pro essentials were not imported), asteroids were not drawn, the hint ghost used the repulsor shape for an attractor, the tray count overlapped its glyph, and the result card hid its "New best" line behind a button.
+
+## 3. Feel (Phase 3)
+
+Measured 2026-11-14 in the Editor. Visual rows are offscreen 1080×1920 renders from `GameFlowSmokeTests.TheFeel_AnswersEachMoment...` (`Logs/Screens/09`–`16`). **No audio row can say "sounds good": nothing here has been heard.**
+
+| ID | Case | Expected | Via | Result |
+|---|---|---|---|---|
+| FEL-01 | A gate lighting in the preview is reported once; going dark is silent; lighting again is new; two at once; reset is silent | As specified | Auto `FeelLogicTests` | ✅ |
+| FEL-02 | The goal chord fires on the frame the line starts to win, not while it keeps winning, not when losing it | As specified | Auto `FeelLogicTests` | ✅ |
+| FEL-03 | Gate notes rise up a pentatonic scale and stop climbing past the table | Strictly rising; only scale degrees | Auto `FeelLogicTests` | ✅ |
+| FEL-04 | Win sequence: gates ping in turn, stinger after the last, inside the hold | As specified | Auto `FeelLogicTests` | ✅ |
+| FEL-05 | Missed gates; the hint pulses once, on the third failed launch only | As specified | Auto `FeelLogicTests` | ✅ |
+| FEL-06 | The last stretch of a winning flight plays at half speed (+0.15 s); a dead flight at full speed; the same for any frame length; the ship never leaves the buffer | As specified | Auto `FeelLogicTests`, `FlightPlaybackTests` | ✅ |
+| FEL-07 | The line eases over 0.05 s from the old shape to exactly the new; the real buffer is never touched; cancellable | As specified | Auto `FeelLogicTests` | ✅ |
+| FEL-08 | Animation curves: bump, blink twice, settle with one small overshoot, rings, charge | As specified | Auto `FeelCurvesTests` (5) | ✅ |
+| FEL-09 | The whoosh's volume and pitch follow the ship's speed, never silent, capped | As specified | Auto `FeelLogicTests` | ✅ |
+| FEL-10 | The line while the ship charges does not change; flight, win and result still hold | As specified | Play `GameFlowSmokeTests` | ✅ |
+| FEL-11 | Held well, gate pop and filled goal, drop and glide, charge ring, flight with trail, win burst with a ring through the gate, miss cross and blinking gate, a fresh level carries nothing over | Each looks as designed | Offscreen renders | ✅ after one fix (the miss cross sat under the HUD; now clamped to the field edge) |
+| AUD-01 | Every one-shot is audible, peaks at the shared level, never clips, starts and ends at silence, is identical every run, has no NaN | As specified | Auto `AudioSynthesisTests` (44) | ✅ |
+| AUD-02 | The whoosh loop joins without a click and is an even texture, not a tone | As specified | Auto `AudioSynthesisTests` | ✅ |
+| AUD-03 | The music: RMS 0.2 ± 0.03, never above 0.95, exactly 8 bars at 66 bpm, seamless join, identical every run, has a tune (not flat), has space, no empty second | As specified | Auto `AudioSynthesisTests` | ✅ |
+| AUD-04 | WAV export of every sound and two passes of the music | Files written to `Logs/Audio/` | Auto `AudioSynthesisTests` | ✅ written; **not listened to** |
+| AUD-05 | The sounds and the music actually sound good; the music sits right behind the effects; the sounds on a phone speaker | Pleasant, balanced | Human + Device | ⏳ **not heard by anyone** |
+| PAL-01 | Every role keeps at least 3:1 contrast against the playfield in all nine palettes, at the alphas drawn; lit and unlit gates differ in colour as well as shape; the winning path differs from the ordinary one | As specified | Auto `ViewColorsTests` (5) | ✅ after two fixes (Neon's winning path matched its normal one; asteroids were drawn at 90%) |
+| PAL-02 | Each palette looks good, not merely legible, with the board | Looks right | Eyes | ⏳ renders were taken in the default palette only |
+| HAP-01 | Vibrations: light on a gate, medium on launch, strong on a win; a tap on pick-up and drop | Right motor effect | Device | ⏳ mapping written; **not felt** |
+| PERF-02 | Frame rate on a phone with the line, rings, stars and burst animating every frame | 60 fps | Device | ⏳ not measured; nothing allocates in the animations |
 
 ## Not yet verified on a device
 

@@ -16,3 +16,6 @@ A feature doc and its test-case rows are written in the same change as the featu
 | [05](05-board-and-rendering.md) | Board, views, camera, HUD | Game, UI | 2 |
 | [06](06-well-drag-and-launch.md) | Placing wells, preview and launch | Core, Game | 2 |
 | [07](07-device-determinism-check.md) | Device determinism check | Core, Editor | 2 |
+| [08](08-feel.md) | Feel: line, wells, launch, win and miss | Core, Game | 3 |
+| [09](09-audio.md) | Audio: the sounds and the music | Core, Services | 3 |
+| [10](10-palette-pass.md) | Palette pass and the sky | Game | 3 |

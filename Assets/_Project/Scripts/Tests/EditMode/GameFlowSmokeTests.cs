@@ -113,6 +113,12 @@ namespace GravityWells.Tests
             int shownHash = game.Trajectory.Hash();
 
             game.Launch();
+            Assert.AreEqual(GameManager.GameState.Charging, game.State, "the ship gathers on the pad first");
+            while (game.State == GameManager.GameState.Charging && !Expired(Deadline()))
+            {
+                Assert.AreEqual(shown[0], game.Trajectory.Points[0], "the line does not change while the ship charges");
+                yield return null;
+            }
             Assert.AreEqual(GameManager.GameState.Flying, game.State);
 
             double deadline = Deadline();
@@ -243,6 +249,82 @@ namespace GravityWells.Tests
                 yield return null;
             }
             Assert.AreEqual(GameManager.GameState.Result, game.State);
+        }
+
+        [UnityTest]
+        public IEnumerator TheFeel_AnswersEachMoment_WithoutErrors_AndLeavesNothingBehind()
+        {
+            GameManager game = Game();
+            Well solution = game.Level.SolutionWells[0];
+
+            // 1. A well is carried across the field and held where it is not yet right: the preview follows it.
+            Assert.IsTrue(game.Layout.BeginDragNew(WellKind.Attractor, new Vector2(0.3f, 0.7f)));
+            game.Layout.DragTo(new Vector2(0.3f, 0.7f), removeZone: false);
+            game.OnLayoutChanged(false);
+            yield return WaitRealtime(0.35);
+            SaveShot("09-drag-held");
+
+            // 2. It is brought to the right place: the line finds the gate and the goal. The gate pops, the goal fills.
+            game.Layout.DragTo(solution.Position, removeZone: false);
+            game.OnLayoutChanged(false);
+            Assert.AreEqual(FlightOutcome.Won, game.Trajectory.Outcome);
+            yield return WaitRealtime(0.12);
+            SaveShot("10-gate-pop");
+
+            // 3. And let go: it settles, and the line glides to its final shape.
+            game.Layout.EndDrag();
+            game.OnLayoutChanged(true);
+            yield return WaitRealtime(0.1);
+            SaveShot("11-dropped");
+            yield return WaitRealtime(0.4);
+            Assert.AreEqual(FlightOutcome.Won, game.Trajectory.Outcome, "the glide never changes the real line");
+
+            // 4. Launch: the ship gathers on the pad.
+            game.Launch();
+            yield return WaitRealtime(0.2);
+            Assert.AreEqual(GameManager.GameState.Charging, game.State);
+            SaveShot("12-charging");
+
+            // 5. In flight, with the trail behind it.
+            double deadline = Deadline();
+            while (game.State != GameManager.GameState.Flying && !Expired(deadline))
+            {
+                yield return null;
+            }
+            yield return WaitRealtime(1.2);
+            SaveShot("13-flying");
+
+            // 6. The win: the burst, the pings.
+            while (game.State != GameManager.GameState.WinHold && !Expired(deadline))
+            {
+                yield return null;
+            }
+            yield return WaitRealtime(0.3);
+            SaveShot("14-win-burst");
+            while (game.State != GameManager.GameState.Result && !Expired(deadline))
+            {
+                yield return null;
+            }
+            Assert.AreEqual(GameManager.GameState.Result, game.State);
+
+            // 7. A miss on level 2: a cross where it ended and the missed gates blink.
+            game.NextLevel();
+            yield return null;
+            game.Layout.Place(WellKind.Attractor, new Vector2(0.9f, 1.4f));
+            game.Resimulate();
+            game.Launch();
+            while (game.State != GameManager.GameState.FailHold && !Expired(deadline))
+            {
+                yield return null;
+            }
+            yield return WaitRealtime(0.3);
+            SaveShot("15-miss");
+
+            // A fresh level carries nothing over: no cross, the line is the new level's.
+            game.ReplayLevel();
+            yield return WaitRealtime(0.2);
+            SaveShot("16-fresh");
+            Assert.AreEqual(GameManager.GameState.Planning, game.State);
         }
 
         private static void SaveShot(string name)

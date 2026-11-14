@@ -31,8 +31,10 @@ namespace GravityWells.Game
         private readonly WellLayout _layout;
         private readonly IWellTray _tray;
         private readonly HapticService _haptics;
-        private readonly Action _layoutChanged;
+        private readonly Action<bool> _layoutChanged;   // true when the change is settled (a drop, not a step of a drag)
         private readonly Action _noneLeft;
+        private readonly Action _pickedUp;
+        private readonly Action<int> _dropped;
 
         private int _activeFinger = MouseFinger;
         private bool _enabled;
@@ -40,13 +42,16 @@ namespace GravityWells.Game
         private bool _lastRemoveZone;
 
         public WellDragController(
-            Camera camera, WellLayout layout, IWellTray tray, HapticService haptics, Action layoutChanged, Action noneLeft)
+            Camera camera, WellLayout layout, IWellTray tray, HapticService haptics, Action<bool> layoutChanged, Action noneLeft,
+            Action pickedUp, Action<int> dropped)
         {
             _camera = camera;
             _layout = layout;
             _tray = tray;
             _haptics = haptics;
             _layoutChanged = layoutChanged;
+            _pickedUp = pickedUp;
+            _dropped = dropped;
             _noneLeft = noneLeft;
         }
 
@@ -63,7 +68,7 @@ namespace GravityWells.Game
             {
                 _layout.CancelDrag(); // never leave a well stuck in a finger when input is cut off
                 _activeFinger = MouseFinger;
-                _layoutChanged();
+                _layoutChanged(true);
             }
         }
 
@@ -162,7 +167,8 @@ namespace GravityWells.Game
             }
 
             _activeFinger = finger;
-            _haptics.Grab();
+            _haptics.Tap();
+            _pickedUp();
             Move(screen, force: true);
         }
 
@@ -178,15 +184,18 @@ namespace GravityWells.Game
             _lastRemoveZone = removeZone;
 
             _layout.DragTo(new Vector2(world.x, world.y + GameConfig.DragLiftWorldUnits), removeZone);
-            _layoutChanged();
+            _layoutChanged(false);
         }
 
         private void End()
         {
+            int index = _layout.DraggedIndex;
+            bool removed = _layout.DragWillRemove;
             _layout.EndDrag();
             _activeFinger = MouseFinger;
-            _layoutChanged();
+            _layoutChanged(true);
             _haptics.Tap();
+            _dropped(removed ? -1 : index);
         }
 
         private Vector2 ToWorld(Vector2 screen)

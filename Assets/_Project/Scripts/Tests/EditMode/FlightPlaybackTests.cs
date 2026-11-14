@@ -63,7 +63,7 @@ namespace GravityWells.Tests
             playback.Advance(seconds * 0.5f);
             Assert.IsFalse(playback.Finished);
             Assert.AreEqual((t.Count - 1) / 2, playback.Step, 1);
-            playback.Advance(seconds * 0.5f + 0.01f);
+            playback.Advance(seconds * 0.5f + 0.2f); // a winning flight also plays its last stretch slowly (+0.15 s)
             Assert.IsTrue(playback.Finished);
         }
 

@@ -3,10 +3,10 @@ namespace GravityWells.Core
     // What the game wants the player to feel, named by the moment rather than by a motor setting.
     public enum HapticKind
     {
-        Tap,   // a button was pressed
-        Grab,  // a dot was picked up
-        Cross, // a line of the dragged dot crossed, or stopped crossing, another line
-        Solve, // the board came clean
+        Tap,   // a button was pressed, or a well was put down
+        Grab,  // the ship launched (the medium one)
+        Cross, // a gate lit (light, and paced so a sweep across several is ticks and not a buzz)
+        Solve, // the level was won (the strong one)
     }
 
     // Chooses the Android effect for each moment. The first choice is the system's own touch

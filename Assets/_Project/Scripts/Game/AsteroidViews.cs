@@ -66,7 +66,7 @@ namespace GravityWells.Game
         {
             for (int i = 0; i < _count; i++)
             {
-                _views[i].color = ViewColors.WithAlpha(_colors.Warning, 0.9f);
+                _views[i].color = _colors.Warning;
             }
         }
     }

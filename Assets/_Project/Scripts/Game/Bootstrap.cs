@@ -59,6 +59,9 @@ namespace GravityWells.Game
             var asteroids = new AsteroidViews(boardRoot);
             var ship = new ShipView(boardRoot);
             var hint = new HintView(boardRoot);
+            var trail = new TrailView(boardRoot);
+            var burst = new BurstView(boardRoot);
+            var mark = new CrashMarkView(boardRoot);
 
             var gameManager = gameObject.AddComponent<GameManager>();
             var hud = new GameHUD(
@@ -66,6 +69,7 @@ namespace GravityWells.Game
                 gameManager.Launch);
             var pause = new PausePanel(ui, ui.Style, gameManager.Resume, gameManager.RestartFromPause);
             var result = new LevelCompletePanel(ui, ui.Style, gameManager.NextLevel, gameManager.ReplayLevel);
+            var feel = new FeelController(audio, haptics, field, path, wells, gates, ship, trail, burst, mark, hud);
             foreach (UIScreen screen in new UIScreen[] { hud, pause, result })
             {
                 ui.AddScreen(screen);
@@ -87,6 +91,7 @@ namespace GravityWells.Game
                     Asteroids = asteroids,
                     Ship = ship,
                     Hint = hint,
+                    Feel = feel,
                     Haptics = haptics,
                     Audio = audio,
                 });
@@ -103,6 +108,7 @@ namespace GravityWells.Game
             };
             themes.Broadcast();
 
+            audio.PlayMusic(MusicTrack.Orbit);
             gameManager.StartCampaign();
         }
 

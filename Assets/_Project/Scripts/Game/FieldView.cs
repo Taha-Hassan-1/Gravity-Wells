@@ -26,6 +26,12 @@ namespace GravityWells.Game
 
         private ViewColors _colors;
         private bool _goalReached;
+        private float _goalPopAge = -1f;
+        private float _goalFillScale;
+        private float _clock;
+        private float _twinkleTimer;
+        private readonly float[] _twinkleSpeed = new float[StarCount];
+        private readonly float[] _twinklePhase = new float[StarCount];
 
         public FieldView(Transform parent)
         {
@@ -50,15 +56,61 @@ namespace GravityWells.Game
             Place(_padRing, level.Start, pad * 2f);
             Place(_padDot, level.Start, 0.022f);
             Place(_goalRing, level.Goal, level.GoalRadius * 2f);
-            Place(_goalFill, level.Goal, level.GoalRadius * 2f * 0.62f);
+            _goalFillScale = level.GoalRadius * 2f * 0.62f;
+            _goalPopAge = -1f;
+            Place(_goalFill, level.Goal, _goalFillScale);
             SetGoalReached(false);
         }
 
         // The goal fills when the flight on screen has lit every gate and ends in it.
         public void SetGoalReached(bool reached)
         {
+            if (reached && !_goalReached)
+            {
+                _goalPopAge = 0f; // it fills with a pop
+            }
             _goalReached = reached;
             PaintGoal();
+        }
+
+        // Breathing goal, popping fill and twinkling stars. Call every frame (a decoration, so any time scale).
+        public void Tick(float seconds)
+        {
+            _clock += seconds;
+
+            if (_goalReached)
+            {
+                float scale = 1f + 0.05f * Mathf.Sin(_clock * 3.2f);
+                if (_goalPopAge >= 0f)
+                {
+                    _goalPopAge += seconds;
+                    scale *= FeelCurves.Settle(_goalPopAge, 0.45f);
+                    if (_goalPopAge >= 0.45f)
+                    {
+                        _goalPopAge = -1f;
+                    }
+                }
+                float diameter = _goalFillScale * scale;
+                _goalFill.transform.localScale = new Vector3(diameter, diameter, 1f);
+            }
+
+            // The stars twinkle gently, a few times a second: slow enough to be a mood and not a distraction.
+            _twinkleTimer += seconds;
+            if (_twinkleTimer >= 0.05f)
+            {
+                _twinkleTimer = 0f;
+                for (int i = 0; i < StarCount; i++)
+                {
+                    float shimmer = 0.78f + 0.22f * Mathf.Sin(_clock * _twinkleSpeed[i] + _twinklePhase[i]);
+                    Color32 c = ViewColors.ToVertexColor(ViewColors.WithAlpha(_colors.Neutral, _starBrightness[i] * shimmer));
+                    int v = i * 4;
+                    _starColors[v] = c;
+                    _starColors[v + 1] = c;
+                    _starColors[v + 2] = c;
+                    _starColors[v + 3] = c;
+                }
+                _starMesh.SetColors(_starColors);
+            }
         }
 
         public void ApplyTheme(ViewColors colors)
@@ -117,6 +169,8 @@ namespace GravityWells.Game
                 float y = Mathf.Lerp(-1.0f, 2.5f, (float)rng.NextDouble());
                 float half = Mathf.Lerp(0.0025f, 0.0075f, (float)rng.NextDouble());
                 _starBrightness[i] = Mathf.Lerp(0.06f, 0.26f, (float)rng.NextDouble());
+                _twinkleSpeed[i] = Mathf.Lerp(0.4f, 1.6f, (float)rng.NextDouble());
+                _twinklePhase[i] = (float)rng.NextDouble() * 6.2832f;
 
                 int v = i * 4;
                 vertices[v + 0] = new Vector3(x - half, y - half, 0f);
