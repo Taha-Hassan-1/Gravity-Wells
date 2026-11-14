@@ -1,6 +1,6 @@
 # Gravity Wells — Test Cases
 
-Last executed: 2026-11-14 · Build: branch `Phase1-FlightCore` · Unity 6000.3.15f1 · EditMode suite 321/321 passing.
+Last executed: 2026-11-14 · Build: branch `Phase2-PlayableBoard` · Unity 6000.3.15f1 · EditMode suite 362/362 passing (headless, including the 4 Play Mode smoke tests).
 
 **How a case is verified** (the *Via* column):
 
@@ -78,6 +78,30 @@ Measured 2026-11-14 in the Editor (Mono). "Debug" and "Release" are the Editor's
 | DIF-01 | Curve and scoring boundary values | As specified | Auto `DifficultyCurveTests` | ✅ |
 | DIF-02 | Path score | 0 only for a win; 1000 per unlit gate; crash +500 | Auto `DifficultyCurveTests` | ✅ |
 | DIF-03 | 10,000-level batch (`LevelBatchTester`) | 0 failures | Editor tool | ✅ 39.2 attempts per level on average, 0.08% gate drops, forgiveness 0.84 (levels 11–20) falling to about 0.48 (levels 170+) |
+
+## 2. Playable board (Phase 2)
+
+Measured 2026-11-14 in the Editor. "Play" rows run the real `Bootstrap.unity` in Play Mode through `GameFlowSmokeTests`, which must be run **headlessly with the Editor closed** (see `CLAUDE.md`, Verification). Screens were checked in offscreen 1080×1920 renders (`Logs/Screens/`, git-ignored).
+
+| ID | Case | Expected | Via | Result |
+|---|---|---|---|---|
+| BRD-01 | Camera fit at 4:3, 16:9, 19.5:9 and 21:9 (upright) | Whole field visible, between the HUD and the tray reserve; safe-area insets push it inward | Auto `CameraFitTests` (4) | ✅ |
+| BRD-02 | The board, HUD and result card in a portrait render | Field, gates, wells, ship, path, tray and buttons laid out without overlap | Offscreen render | ✅ after fixes (below) |
+| BRD-03 | Asteroids, repulsor outline, lit and unlit gates, filled goal | Drawn, and told apart by shape as well as colour | Offscreen render (levels 1 and 60) | ✅ asteroids were missing at first; added |
+| LAY-01 | Budget (par + 2), repulsor cap, legal positions, clamp | As specified | Auto `WellLayoutTests` (15) | ✅ |
+| LAY-02 | Undo of place, move and remove; restart; one drag is one edit; tray drop never happened; cancel | As specified | Auto `WellLayoutTests` | ✅ |
+| FLY-01 | The ship stays on the line that was shown | Every frame, the ship view equals the playback position, which lies on the copied preview line; the buffer's hash is unchanged after the flight | Play `GameFlowSmokeTests` | ✅ |
+| FLY-02 | Playback timing and the 3× tap | Takes the flight's length; 3× after a tap; gates light as the ship reaches them | Auto `FlightPlaybackTests` (6) | ✅ |
+| FLY-03 | Solve level 1 and level 60 (five gates, asteroids) with their own wells through the real `GameManager` | Wins, result card, 3 stars at par, next level starts empty | Play `GameFlowSmokeTests` | ✅ |
+| FLY-04 | A failed launch | Wells stay exactly where they were, launch counted, back to planning | Play `GameFlowSmokeTests` | ✅ |
+| FLY-05 | Undo, restart, pause (Back resumes), hint | As specified; the game is never stranded | Play `GameFlowSmokeTests` | ✅ |
+| CMP-01 | Campaign: stars by wells used, stars only rise, progress and unlocks saved and reloaded, extra well, under par | As specified | Auto `CampaignModeTests` (12) | ✅ |
+| DET-06 | Device determinism hash, Editor half | `-159271037` | Editor menu / Auto `DeterminismTests` | ✅ |
+| DET-07 | Device determinism hash, phone half | Same number as the Editor | Device | ⏳ **not run: no phone connected** |
+| INP-01 | Press, drag, drop and tray-removal by a finger | Works with one finger, ignores a second | Device | ⏳ not run. The controller reads `Input`, which no test can inject; the rules behind it are covered by LAY-01/02 |
+| PERF-01 | 60 fps and zero GC per frame while dragging a well on a 4-well, 5-gate, 4-asteroid level | Zero allocation; 60 fps on a mid-range phone | Auto for allocation (`Simulate` and `TryPlan` allocate 0 bytes); Device for fps | allocation ✅; **fps and Profiler number ⏳ not measured** |
+
+Fixes found by looking at the renders: all text was missing (TextMesh Pro essentials were not imported), asteroids were not drawn, the hint ghost used the repulsor shape for an attractor, the tray count overlapped its glyph, and the result card hid its "New best" line behind a button.
 
 ## Not yet verified on a device
 

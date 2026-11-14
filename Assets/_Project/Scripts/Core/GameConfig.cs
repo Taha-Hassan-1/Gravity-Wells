@@ -56,6 +56,23 @@ namespace GravityWells.Core
         public const int ForgivenessSamples = 24;
         public const float MinForgiveness = 0.2f;
 
+        // --- View and input ---
+        // The camera frames the field plus this margin, inside the space left by the HUD (top) and the well tray
+        // and Launch button (bottom). Fractions of the screen.
+        public const float ViewMargin = 0.04f;              // world units around the field
+        public const float ViewSideMargin = 0.02f;
+        public const float ViewTopReserve = 0.13f;
+        public const float ViewBottomReserve = 0.21f;
+        public const float TouchRadiusDp = 48f;             // how near a touch must be to a placed well to grab it
+        public const float MinTouchRadiusWorldUnits = 0.07f; // the field is 1 unit wide, so this is about 7% of it
+        public const float DragLiftWorldUnits = 0f;         // lift of a dragged well above the finger; to be judged on a phone
+        public const float PlaybackSpeed = 1f;
+        public const float FastPlaybackSpeed = 3f;          // a tap during a flight
+        public const float WinHoldSeconds = 0.9f;           // the pause on the finished flight before the result card
+        public const int PathDotStride = 6;                 // one dot every this many steps (0.05 s)
+        public const float PathDotRadius = 0.0055f;
+        public const float WellViewRadius = 0.11f;          // the pull ring drawn around a well
+
         // --- Meta ---
         public const float ThemeCrossfadeDuration = 0.3f;
 

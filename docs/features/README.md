@@ -13,3 +13,6 @@ A feature doc and its test-case rows are written in the same change as the featu
 | [02](02-level-generation.md) | Level generation | Core | 1 |
 | [03](03-solver-hint-and-score.md) | Path score, solver, hint, forgiveness | Core | 1 |
 | [04](04-difficulty-and-scoring.md) | Difficulty curve and scoring | Core | 1 |
+| [05](05-board-and-rendering.md) | Board, views, camera, HUD | Game, UI | 2 |
+| [06](06-well-drag-and-launch.md) | Placing wells, preview and launch | Core, Game | 2 |
+| [07](07-device-determinism-check.md) | Device determinism check | Core, Editor | 2 |

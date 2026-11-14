@@ -38,7 +38,7 @@ Its job is to show levels are findable, not merely solvable.
 - `DifficultyCurveTests`: the score is 0 only for a win; each unlit gate costs 1000 plus its distance; one more gate lit beats closer-to-two; a crash costs 500; flying over the goal before the last gate does not count.
 - `SolverTests`: on levels 1–100 it wins at least 95% within 20,000 flights, and the layout it leaves really wins inside the budget and the placement rules; the same seed solves the same way; it respects the flight limit; it does not win on its first flight (so it is not peeking).
 - `HintTests`: from 1,000 random non-winning layouts the planned move never makes the score worse (and a move is found for nearly all of them); repeated hints from an empty field win most of levels 1–50 within 12; a winning layout gets no hint; with the budget full it only moves existing wells; it does not land on the stored solution; zero allocations.
-- `CoreRulesTests`: only the generator, forgiveness and the level itself may name `SolutionWells`.
+- `CoreRulesTests`: only the generator, forgiveness, the level and the determinism check itself may name `SolutionWells`.
 
 ## Not verified
 

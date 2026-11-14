@@ -79,12 +79,12 @@ namespace GravityWells.Tests
         }
 
         [Test]
-        public void OnlyTheGeneratorItsMeasureAndTheLevelItself_ReadTheStoredSolution()
+        public void OnlyTheGeneratorItsMeasureTheLevelAndTheDeterminismCheck_ReadTheStoredSolution()
         {
             foreach (string path in CoreFiles())
             {
                 string name = Path.GetFileName(path);
-                if (name == "LevelGenerator.cs" || name == "Forgiveness.cs" || name == "LevelDefinition.cs")
+                if (name == "LevelGenerator.cs" || name == "Forgiveness.cs" || name == "LevelDefinition.cs" || name == "DeterminismCheck.cs")
                 {
                     continue;
                 }

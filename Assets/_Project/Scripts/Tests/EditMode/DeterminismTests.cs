@@ -9,6 +9,11 @@ namespace GravityWells.Tests
     // "the same" here means the same bits, not "close".
     public class DeterminismTests
     {
+        // The Editor's value of DeterminismCheck.CombinedHash, recorded 2026-11-14 before any phone had run it.
+        // If a deliberate change to the generator or the simulator moves it, record the new value here AND re-run
+        // the check on a device (docs/TEST_CASES.md, DET-05).
+        private const int ExpectedEditorHash = -159271037;
+
         private static int Bits(float value) => BitConverter.SingleToInt32Bits(value);
 
         private static void AssertSameBits(Vector2 a, Vector2 b, string what)
@@ -99,29 +104,12 @@ namespace GravityWells.Tests
             Assert.AreNotEqual(before, trajectory.Hash());
         }
 
-        // One number for the solutions of levels 1 to 100. Phase 2 prints the same number on a phone;
-        // if the two differ, floats are not behaving identically there (CLAUDE.md, third rule).
-        public static int CombinedHashOfLevels1To100()
-        {
-            var trajectory = new Trajectory();
-            unchecked
-            {
-                uint combined = 2166136261u;
-                for (int number = 1; number <= 100; number++)
-                {
-                    LevelDefinition level = LevelGenerator.Generate(DifficultyCurve.SeedForLevel(number), number);
-                    FlightSimulator.Simulate(level, level.SolutionWells, level.SolutionWells.Length, trajectory);
-                    combined = (combined ^ (uint)trajectory.Hash()) * 16777619u;
-                }
-                return (int)combined;
-            }
-        }
-
         [Test]
         public void TheCombinedHashOfTheCampaign_IsStableFromRunToRun()
         {
-            int first = CombinedHashOfLevels1To100();
-            Assert.AreEqual(first, CombinedHashOfLevels1To100());
+            int first = DeterminismCheck.CombinedHash();
+            Assert.AreEqual(first, DeterminismCheck.CombinedHash());
+            Assert.AreEqual(ExpectedEditorHash, first, "the campaign now flies differently from when the device check was recorded: re-run it on a phone");
             Debug.Log("[Determinism] combined trajectory hash, campaign levels 1-100 (Editor): " + first);
         }
 

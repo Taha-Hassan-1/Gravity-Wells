@@ -136,6 +136,8 @@ unity command run_tests --mode EditMode --timeout 150 --project-path "D:/Project
 
 Refresh first after editing files on disk, and confirm compilation with `EditorUtility.scriptCompilationFailed`. Put C# snippets in a file and use `eval_file`. Render screenshots **offscreen** (main camera into a 1080x1920 RenderTexture, then the canvas through a temporary ScreenSpaceCamera whose culling mask is the canvas layer) and look at every screen you change. Set the `GRAVITYWELLS_DATA_DIR` environment variable (Editor only, read by `Bootstrap.DataDirectory`, the same idea as Untangle's `UNTANGLE_DATA_DIR`) for scripted play sessions so the real save is not touched. An unfocused Editor stops advancing frames: pause, set `Time.captureDeltaTime` and call `EditorApplication.Step()`.
 
+**Play Mode tests (`GameFlowSmokeTests`) cannot run through the CLI.** They enter Play Mode from the EditMode assembly, which reloads the domain, and the CLI connection drops with "socket hang up" (and a later async run can wedge the test runner until `cancel_tests`). Run them with the headless command below, with the Editor closed. Without `-nographics` they also write portrait renders to `Logs/Screens/`. All other tests run fine through the CLI.
+
 Fallback, with the Editor closed (do **not** add `-quit`, it can quit before the tests start):
 
 ```bash
