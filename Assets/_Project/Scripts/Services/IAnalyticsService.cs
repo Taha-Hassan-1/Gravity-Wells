@@ -43,5 +43,7 @@ namespace GravityWells.Services
         public const string ModeFinished = "mode_finished";
         public const string PuzzleShared = "puzzle_shared";
         public const string ModeContinued = "mode_continued";
+        public const string SessionStart = "session_start";
+        public const string AppException = "app_exception";
     }
 }

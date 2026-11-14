@@ -10,7 +10,7 @@ namespace GravityWells.UI
     // Owns the Canvas, the EventSystem and the toast, and routes the Android back button (Escape) to
     // whichever screen is current. Screens are built by the game phase that needs them and handed to
     // SwitchTo; the root knows nothing about any particular screen.
-    public sealed class UIRoot : MonoBehaviour
+    public sealed class UIRoot : MonoBehaviour, GravityWells.Game.IAdPresenter
     {
         private const float ReferenceWidth = 1080f;
         private const float ReferenceHeight = 1920f;
@@ -24,6 +24,7 @@ namespace GravityWells.UI
         private CanvasScaler _scaler;
         private UIScreen _current;
         private CanvasGroup _toastGroup;
+        private AdOverlay _adOverlay;
         private CanvasGroup _fadingGroup;
         private float _fadeElapsed;
         private TextMeshProUGUI _toastText;
@@ -34,6 +35,31 @@ namespace GravityWells.UI
         public Transform CanvasTransform { get; private set; }
         public UIStyle Style => _style;
         public UIScreen Current => _current;
+
+        // What the ad overlay's button (and Android Back while it is up) does. Set by whoever owns the ad flow.
+        public System.Action AdOverlayDismissed { get; set; }
+
+        public bool AdOverlayVisible => _adOverlay != null && _adOverlay.Visible;
+
+        // Call once every screen has been built: the ad overlay and the toast must be the last children of the canvas
+        // so they draw over the opaque screens (a toast created first would hide behind the menu).
+        public void FinishBuild()
+        {
+            _adOverlay = new AdOverlay(CanvasTransform, _style, () => AdOverlayDismissed?.Invoke());
+            _toastGroup.transform.SetAsLastSibling();
+        }
+
+        public void ShowAdLoading(string title, string body, bool cancellable) => _adOverlay.ShowLoading(title, body, cancellable);
+
+        public void ShowAdMessage(string title, string body) => _adOverlay.ShowMessage(title, body);
+
+        public void HideAdOverlay()
+        {
+            if (_adOverlay != null)
+            {
+                _adOverlay.Hide();
+            }
+        }
 
         public void Init(ThemePalette initialPalette)
         {
@@ -116,9 +142,22 @@ namespace GravityWells.UI
 
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.Escape) && _current != null)
+            if (Input.GetKeyDown(KeyCode.Escape))
             {
-                _current.OnBack();
+                // While the ad overlay is up, Back belongs to it and to nothing underneath.
+                if (AdOverlayVisible)
+                {
+                    AdOverlayDismissed?.Invoke();
+                }
+                else if (_current != null)
+                {
+                    _current.OnBack();
+                }
+            }
+
+            if (_adOverlay != null)
+            {
+                _adOverlay.Tick(Time.unscaledDeltaTime);
             }
 
             TickFade(Time.unscaledDeltaTime);
@@ -221,7 +260,8 @@ namespace GravityWells.UI
         private void BuildToast(Transform canvas)
         {
             RectTransform root = UIFactory.CreateRect(canvas, "Toast");
-            UIFactory.Place(root, new Vector2(0.5f, 0f), new Vector2(0f, 360f), new Vector2(900f, 90f));
+            // Near the top, under the header: the bottom of the screen is where the well tray, the Launch button and the thumb are.
+            UIFactory.Place(root, new Vector2(0.5f, 1f), new Vector2(0f, -340f), new Vector2(900f, 90f));
             _toastGroup = root.gameObject.AddComponent<CanvasGroup>();
             _toastGroup.alpha = 0f;
             _toastGroup.blocksRaycasts = false;

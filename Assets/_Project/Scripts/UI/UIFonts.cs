@@ -4,7 +4,7 @@ using UnityEngine;
 namespace GravityWells.UI
 {
     // The game's two typefaces, loaded once from Resources/UI/Fonts (created by
-    // Gravity Wells > Build > Create UI Fonts). Body is a soft rounded face for reading; Display is a
+    // GravityWells > Build > Create UI Fonts). Body is a soft rounded face for reading; Display is a
     // chunky one for titles, numbers and primary buttons. If an asset is missing the text falls
     // back to TextMeshPro's default font, so a bad import never leaves blank labels.
     public static class UIFonts

@@ -1,6 +1,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using GravityWells.Core;
 
 namespace GravityWells.UI
 {
@@ -32,9 +33,12 @@ namespace GravityWells.UI
         // Settings / Stats / Themes sub-screens.
         protected void AddHeader(string title, UIStyle style, UnityAction onBack)
         {
-            var backSize = new Vector2(230f, 100f);
-            var back = UIFactory.CreateButton(Content, "BackButton", "Back", backSize, style, onBack, fontSize: 40f, icon: UIIcons.Get("back"));
-            UIFactory.Place((RectTransform)back.transform, new Vector2(0f, 1f), new Vector2(50f, -50f), backSize);
+            // A round glyph, like every other piece of navigation chrome; the word "Back" added nothing.
+            const float backSize = 92f;
+            var back = UIFactory.CreateRoundButton(Content, "BackButton", UIIcons.Get("back"), backSize, style, onBack);
+            UIFactory.Place(
+                (RectTransform)back.transform, new Vector2(0f, 1f),
+                new Vector2(UITokens.SpaceL, -UITokens.SpaceL), new Vector2(backSize, backSize));
 
             TextMeshProUGUI heading = UIFactory.CreateText(
                 Content, "Title", title, 90f, TextAlignmentOptions.Center, style, bold: true);

@@ -14,9 +14,17 @@ namespace GravityWells.Meta
         public readonly Color Accent;
         public readonly Color Text;
 
+        // Semantic roles beyond the core colours: a panel/control surface, a raised one for dialogs, and
+        // supporting text. A palette that does not name them gets values blended from its own background and
+        // text, so every theme has the full set and the older palettes look as they did.
+        public readonly Color Surface;
+        public readonly Color SurfaceElevated;
+        public readonly Color TextSecondary;
+
         public ThemePalette(
             string name, int unlockLevel, string background, string node, string nodeGrabbed,
-            string edgeClear, string edgeCrossing, string accent, string text)
+            string edgeClear, string edgeCrossing, string accent, string text,
+            string surface = null, string surfaceElevated = null, string textSecondary = null)
         {
             Name = name;
             UnlockLevel = unlockLevel;
@@ -27,11 +35,15 @@ namespace GravityWells.Meta
             EdgeCrossing = ParseHex(edgeCrossing);
             Accent = ParseHex(accent);
             Text = ParseHex(text);
+            Surface = surface != null ? ParseHex(surface) : Color.Lerp(Background, Text, SurfaceBlend);
+            SurfaceElevated = surfaceElevated != null ? ParseHex(surfaceElevated) : Color.Lerp(Background, Text, ElevatedBlend);
+            TextSecondary = textSecondary != null ? ParseHex(textSecondary) : Color.Lerp(Background, Text, SecondaryTextBlend);
         }
 
         private ThemePalette(
             string name, int unlockLevel, Color background, Color node, Color nodeGrabbed,
-            Color edgeClear, Color edgeCrossing, Color accent, Color text)
+            Color edgeClear, Color edgeCrossing, Color accent, Color text,
+            Color surface, Color surfaceElevated, Color textSecondary)
         {
             Name = name;
             UnlockLevel = unlockLevel;
@@ -42,13 +54,21 @@ namespace GravityWells.Meta
             EdgeCrossing = edgeCrossing;
             Accent = accent;
             Text = text;
+            Surface = surface;
+            SurfaceElevated = surfaceElevated;
+            TextSecondary = textSecondary;
         }
+
+        private const float SurfaceBlend = 0.12f;
+        private const float ElevatedBlend = 0.18f;
+        private const float SecondaryTextBlend = 0.66f;
 
         // The same palette with its two line colors replaced (the player's picks).
         public ThemePalette WithEdgeColors(Color edgeClear, Color edgeCrossing)
         {
             return new ThemePalette(
-                Name, UnlockLevel, Background, Node, NodeGrabbed, edgeClear, edgeCrossing, Accent, Text);
+                Name, UnlockLevel, Background, Node, NodeGrabbed, edgeClear, edgeCrossing, Accent, Text,
+                Surface, SurfaceElevated, TextSecondary);
         }
 
         // Blends every color; identity (name/unlock level) comes from the target.
@@ -62,7 +82,10 @@ namespace GravityWells.Meta
                 Color.Lerp(from.EdgeClear, to.EdgeClear, t),
                 Color.Lerp(from.EdgeCrossing, to.EdgeCrossing, t),
                 Color.Lerp(from.Accent, to.Accent, t),
-                Color.Lerp(from.Text, to.Text, t));
+                Color.Lerp(from.Text, to.Text, t),
+                Color.Lerp(from.Surface, to.Surface, t),
+                Color.Lerp(from.SurfaceElevated, to.SurfaceElevated, t),
+                Color.Lerp(from.TextSecondary, to.TextSecondary, t));
         }
 
         private static Color ParseHex(string hex)
@@ -78,12 +101,20 @@ namespace GravityWells.Meta
     {
         public static readonly ThemePalette[] Palettes =
         {
+            // Warm Paper and Deep Navy follow the UI design brief's semantic tokens (light and dark versions of
+            // one system): ivory/stone with a terracotta action (the brief's blue read as generic on paper, so the
+            // original accent was kept), navy/blue-grey with a cool blue one, and a
+            // coral/green edge pair tuned separately for each so both stay legible. Three light-theme values are
+            // a shade deeper than the brief's (selected node, clear edge, supporting text) because the brief's
+            // measured under 3:1 / 4.5:1 against the ivory background; UIDesignSystemTests pins the ratios.
             new ThemePalette("Warm Paper", 1,
-                background: "#F2E8D5", node: "#3A2E22", nodeGrabbed: "#C9A876",
-                edgeClear: "#6E9A6A", edgeCrossing: "#C14E3A", accent: "#B4552F", text: "#2B1F15"),
+                background: "#F3E9D5", node: "#382F25", nodeGrabbed: "#BF6F0F",
+                edgeClear: "#4A9167", edgeCrossing: "#C95545", accent: "#B4552F", text: "#30291F",
+                surface: "#E8DDC8", surfaceElevated: "#FFF8EB", textSecondary: "#655B4E"),
             new ThemePalette("Deep Navy", 10,
-                background: "#0B1930", node: "#E8EEF7", nodeGrabbed: "#5C9DD6",
-                edgeClear: "#4FA6A0", edgeCrossing: "#D65A5A", accent: "#5C9DD6", text: "#E8EEF7"),
+                background: "#0D1730", node: "#E9EDF5", nodeGrabbed: "#FFD166",
+                edgeClear: "#69B88A", edgeCrossing: "#E46A62", accent: "#63A9E8", text: "#F4F6FA",
+                surface: "#1B2944", surfaceElevated: "#263752", textSecondary: "#AAB6C8"),
             new ThemePalette("Forest", 25,
                 background: "#1B2A1E", node: "#E8F0E0", nodeGrabbed: "#7BAE6F",
                 edgeClear: "#6FAE8F", edgeCrossing: "#C97A4A", accent: "#8FC97A", text: "#E8F0E0"),

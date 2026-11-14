@@ -53,6 +53,9 @@ namespace GravityWells.UI
                 case "weekly": return Paint(WeeklyPixel);
                 case "endless": return Paint(EndlessPixel);
                 case "headstart": return Paint(HeadStartPixel);
+                case "restart": return Paint(RestartPixel);
+                case "music": return Paint(MusicPixel);
+                case "chevron": return Paint(ChevronPixel);
                 default: return null;
             }
         }
@@ -133,6 +136,54 @@ namespace GravityWells.UI
             float t = Mathf.Clamp01(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy));
             float px = ax + t * dx - x, py = ay + t * dy - y;
             return Mathf.Sqrt(px * px + py * py);
+        }
+
+        // A ring with a gap and an arrowhead: start again. (The pack's glyph was a "redo" arrow, which
+        // promised the opposite of Undo rather than a fresh start.)
+        private static Color RestartPixel(float x, float y)
+        {
+            float dx = x - 0.5f, dy = y - 0.5f;
+            float d = Mathf.Sqrt(dx * dx + dy * dy);
+            float angle = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg;
+            bool gap = angle > 14f && angle < 74f;
+            bool ring = d <= 0.40f && d >= 0.29f && !gap;
+
+            const float baseAngle = 14f * Mathf.Deg2Rad;
+            const float tipAngle = 56f * Mathf.Deg2Rad;
+            bool head = InTriangle(
+                x, y,
+                0.5f + 0.17f * Mathf.Cos(baseAngle), 0.5f + 0.17f * Mathf.Sin(baseAngle),
+                0.5f + 0.52f * Mathf.Cos(baseAngle), 0.5f + 0.52f * Mathf.Sin(baseAngle),
+                0.5f + 0.345f * Mathf.Cos(tipAngle), 0.5f + 0.345f * Mathf.Sin(tipAngle));
+            return ring || head ? Color.white : Color.clear;
+        }
+
+        private static bool InTriangle(float x, float y, float ax, float ay, float bx, float by, float cx, float cy)
+        {
+            float d1 = (x - bx) * (ay - by) - (ax - bx) * (y - by);
+            float d2 = (x - cx) * (by - cy) - (bx - cx) * (y - cy);
+            float d3 = (x - ax) * (cy - ay) - (cx - ax) * (y - ay);
+            bool negative = d1 < 0f || d2 < 0f || d3 < 0f;
+            bool positive = d1 > 0f || d2 > 0f || d3 > 0f;
+            return !(negative && positive);
+        }
+
+        // A single note, so Music no longer shares the speaker with Sound.
+        private static Color MusicPixel(float x, float y)
+        {
+            float hx = (x - 0.40f) / 0.19f, hy = (y - 0.24f) / 0.14f;
+            bool head = hx * hx + hy * hy <= 1f;
+            bool stem = x >= 0.52f && x <= 0.60f && y >= 0.24f && y <= 0.86f;
+            bool flag = SegmentDistance(x, y, 0.58f, 0.84f, 0.82f, 0.70f) <= 0.055f;
+            return head || stem || flag ? Color.white : Color.clear;
+        }
+
+        // A ">" for rows that open another page.
+        private static Color ChevronPixel(float x, float y)
+        {
+            bool stroke = SegmentDistance(x, y, 0.36f, 0.20f, 0.66f, 0.50f) <= 0.065f
+                || SegmentDistance(x, y, 0.66f, 0.50f, 0.36f, 0.80f) <= 0.065f;
+            return stroke ? Color.white : Color.clear;
         }
 
         // A flag on a pole: a head start.

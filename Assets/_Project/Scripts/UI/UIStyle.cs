@@ -28,6 +28,8 @@ namespace GravityWells.UI
         private readonly List<ButtonEntry> _buttons = new List<ButtonEntry>();
         private readonly List<Image> _icons = new List<Image>();
         private readonly List<Image> _accentIcons = new List<Image>();
+        private readonly List<Image> _dimIcons = new List<Image>();
+        private readonly List<System.Action<ThemePalette>> _custom = new List<System.Action<ThemePalette>>();
 
         public ThemePalette Palette { get; private set; }
 
@@ -82,6 +84,21 @@ namespace GravityWells.UI
             icon.color = accent ? Palette.Accent : Palette.Text;
         }
 
+        // An icon in the supporting text colour (quiet buttons, section chrome).
+        public void RegisterDimIcon(Image icon)
+        {
+            _dimIcons.Add(icon);
+            icon.color = Palette.TextSecondary;
+        }
+
+        // For a widget whose colours depend on its own state as well as the theme (a switch, a
+        // mini graph): it repaints itself now and again on every palette change.
+        public void RegisterCustom(System.Action<ThemePalette> repaint)
+        {
+            _custom.Add(repaint);
+            repaint(Palette);
+        }
+
         public void RegisterButton(Image fill, TMP_Text label, bool primary, Image icon = null)
         {
             _buttons.Add(new ButtonEntry { Fill = fill, Label = label, Primary = primary, Icon = icon });
@@ -109,7 +126,7 @@ namespace GravityWells.UI
             }
             foreach (TMP_Text text in _dimTexts)
             {
-                text.color = Dim(palette.Text);
+                text.color = palette.TextSecondary;
             }
             foreach (TMP_Text text in _accentTexts)
             {
@@ -126,6 +143,14 @@ namespace GravityWells.UI
             foreach (Image icon in _accentIcons)
             {
                 icon.color = palette.Accent;
+            }
+            foreach (Image icon in _dimIcons)
+            {
+                icon.color = palette.TextSecondary;
+            }
+            for (int i = 0; i < _custom.Count; i++)
+            {
+                _custom[i](palette);
             }
         }
 
@@ -146,20 +171,21 @@ namespace GravityWells.UI
             {
                 return Palette.Accent;
             }
-            return dim ? Dim(Palette.Text) : Palette.Text;
+            return dim ? Palette.TextSecondary : Palette.Text;
         }
 
         // ---- pure, testable ----
 
-        // A subtle raised panel: the background nudged toward the text color.
+        // Controls and panels sitting on the page (the palette's surface role).
         public static Color SurfaceColor(ThemePalette palette)
         {
-            return Color.Lerp(palette.Background, palette.Text, 0.12f);
+            return palette.Surface;
         }
 
+        // Dialogs, and tiles placed on a surface: the raised level above it.
         public static Color CardColor(ThemePalette palette)
         {
-            return Color.Lerp(palette.Background, palette.Text, 0.06f);
+            return palette.SurfaceElevated;
         }
 
         public static Color Dim(Color color)
@@ -180,6 +206,28 @@ namespace GravityWells.UI
         public static float Luminance(Color c)
         {
             return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+        }
+
+        // WCAG 2 contrast ratio between two colours (1 = identical, 21 = black on white), using relative
+        // luminance on the linearised channels. 4.5 is the bar for normal text, 3 for large text and for
+        // graphics that must be seen (edges, the selected node).
+        public static float ContrastRatio(Color a, Color b)
+        {
+            float la = RelativeLuminance(a);
+            float lb = RelativeLuminance(b);
+            float lighter = Mathf.Max(la, lb);
+            float darker = Mathf.Min(la, lb);
+            return (lighter + 0.05f) / (darker + 0.05f);
+        }
+
+        private static float RelativeLuminance(Color c)
+        {
+            return 0.2126f * Linear(c.r) + 0.7152f * Linear(c.g) + 0.0722f * Linear(c.b);
+        }
+
+        private static float Linear(float channel)
+        {
+            return channel <= 0.03928f ? channel / 12.92f : Mathf.Pow((channel + 0.055f) / 1.055f, 2.4f);
         }
     }
 }

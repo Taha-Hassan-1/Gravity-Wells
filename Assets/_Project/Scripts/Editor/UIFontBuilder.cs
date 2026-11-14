@@ -75,6 +75,19 @@ namespace GravityWells.Editor
                 asset.fallbackFontAssetTable = new System.Collections.Generic.List<TMP_FontAsset> { fallback };
             }
 
+            // Static from here on: the atlas baked above is what ships. A dynamic atlas grows every
+            // time the Editor plays, which rewrote these committed assets after each session, and on
+            // a device it rasterized glyphs at runtime. Every character the game shows is in
+            // Characters (UIFontTests checks that); anything else still falls back to Liberation Sans.
+            asset.atlasPopulationMode = AtlasPopulationMode.Static;
+            var serialized = new SerializedObject(asset);
+            SerializedProperty clearOnBuild = serialized.FindProperty("m_ClearDynamicDataOnBuild");
+            if (clearOnBuild != null)
+            {
+                clearOnBuild.boolValue = false; // a build must never empty a baked atlas
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+            }
+
             EditorUtility.SetDirty(asset);
         }
     }

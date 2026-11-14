@@ -13,10 +13,12 @@ namespace GravityWells.Game
         public IPurchaseService Purchases { get; }
         public IConsentService Consent { get; }
         public IAnalyticsService Analytics { get; }
+        public IShareService Share { get; }
 
         public ServiceLocator(
             HapticService haptics, AudioService audio, IAdService ads,
-            IPurchaseService purchases, IConsentService consent, IAnalyticsService analytics)
+            IPurchaseService purchases, IConsentService consent, IAnalyticsService analytics,
+            IShareService share)
         {
             Haptics = haptics;
             Audio = audio;
@@ -24,6 +26,7 @@ namespace GravityWells.Game
             Purchases = purchases;
             Consent = consent;
             Analytics = analytics;
+            Share = share;
         }
     }
 }

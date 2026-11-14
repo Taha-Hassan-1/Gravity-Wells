@@ -149,7 +149,11 @@ namespace GravityWells.Services
             _source.PlayOneShot(_tickClip);
         }
 
-        // A soft, low UI tap, deliberately quieter and duller than the board tick.
+        public const float ClickStartHz = 1500f;
+        public const float ClickEndHz = 950f;
+        public const float ClickVolume = 0.55f;
+
+        // The UI tap: a soft pop, quieter than the board tick but in a range a phone speaker plays.
         public void PlayClick()
         {
             if (!Enabled)
@@ -157,7 +161,7 @@ namespace GravityWells.Services
                 return;
             }
             _source.pitch = 1f;
-            _source.PlayOneShot(_clickClip, 0.45f);
+            _source.PlayOneShot(_clickClip, ClickVolume);
         }
 
         public void PlayChord()
@@ -193,16 +197,22 @@ namespace GravityWells.Services
         private static AudioClip BuildClickClip()
         {
             const int sampleRate = 44100;
-            const float duration = 0.035f;
-            const float frequency = 520f;
+            // A short "pop": the pitch falls from ClickStartHz to ClickEndHz as it dies away. The old
+            // click was a 520 Hz sine, which a phone speaker (weak below about 700 Hz) barely plays.
+            const float duration = 0.05f;
+            const float attack = 0.002f;
             int sampleCount = Mathf.RoundToInt(sampleRate * duration);
             var samples = new float[sampleCount];
 
+            float phase = 0f;
             for (int i = 0; i < sampleCount; i++)
             {
+                float progress = (float)i / sampleCount;
                 float t = (float)i / sampleRate;
-                float envelope = Mathf.Pow(1f - (float)i / sampleCount, 3f);
-                samples[i] = Mathf.Sin(2f * Mathf.PI * frequency * t) * envelope;
+                float frequency = Mathf.Lerp(ClickStartHz, ClickEndHz, Mathf.Sqrt(progress));
+                phase += 2f * Mathf.PI * frequency / sampleRate;
+                float envelope = Mathf.Min(1f, t / attack) * Mathf.Pow(1f - progress, 2.5f);
+                samples[i] = Mathf.Sin(phase) * envelope;
             }
 
             var clip = AudioClip.Create("Click", sampleCount, 1, sampleRate, false);

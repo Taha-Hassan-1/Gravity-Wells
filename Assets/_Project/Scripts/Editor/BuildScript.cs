@@ -89,7 +89,72 @@ namespace GravityWells.Editor
 
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(BootstrapScene, true) };
 
+            ApplyAppIcon();
             ApplyAdMobSettings();
+        }
+
+        private const string IconFolder = "Assets/_Project/AppIcon/";
+
+        // The launcher icon, applied from the three files in IconFolder on every build (so the committed
+        // PNGs, not a hand-edited Player Settings page, are what ships): the full art for the legacy and
+        // round icons and as the default, and a background plus a foreground layer for Android's adaptive
+        // icon, whose foreground is kept inside the central safe zone so a round mask never cuts the title.
+        private static void ApplyAppIcon()
+        {
+            Texture2D full = LoadIconTexture("icon.png");
+            Texture2D back = LoadIconTexture("adaptive_background.png");
+            Texture2D front = LoadIconTexture("adaptive_foreground.png");
+            if (full == null || back == null || front == null)
+            {
+                Debug.LogWarning("[Build] App icon files not found in " + IconFolder + "; the default icon will be used.");
+                return;
+            }
+
+            NamedBuildTarget android = NamedBuildTarget.Android;
+            PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { full }, IconKind.Any);
+
+            foreach (PlatformIconKind kind in PlayerSettings.GetSupportedIconKinds(android))
+            {
+                bool adaptive = kind.ToString().IndexOf("Adaptive", StringComparison.OrdinalIgnoreCase) >= 0;
+                PlatformIcon[] icons = PlayerSettings.GetPlatformIcons(android, kind);
+                foreach (PlatformIcon icon in icons)
+                {
+                    if (adaptive && icon.maxLayerCount >= 2)
+                    {
+                        icon.SetTexture(back, 0);
+                        icon.SetTexture(front, 1);
+                    }
+                    else
+                    {
+                        icon.SetTexture(full, 0);
+                    }
+                }
+                PlayerSettings.SetPlatformIcons(android, kind, icons);
+            }
+        }
+
+        // Icons must import as plain, uncompressed textures (not sprites), so that is enforced here.
+        private static Texture2D LoadIconTexture(string fileName)
+        {
+            string path = IconFolder + fileName;
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer != null
+                && (importer.textureType != TextureImporterType.Default
+                    || importer.textureCompression != TextureImporterCompression.Uncompressed
+                    || importer.mipmapEnabled))
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.mipmapEnabled = false;
+                importer.npotScale = TextureImporterNPOTScale.None;
+                importer.alphaIsTransparency = true;
+                importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         }
 
         // The Google Mobile Ads plugin refuses to build without an Android app id in its settings
@@ -185,9 +250,9 @@ namespace GravityWells.Editor
                 return false;
             }
 
-            double megabytes = new FileInfo(path).Length / (1024.0 * 1024.0); // the artifact itself, not the build's intermediate output
+            double megabytes = summary.totalSize / (1024.0 * 1024.0);
             Debug.Log($"[Build] OK {path} ({megabytes:F1} MB, {summary.totalTime.TotalSeconds:F0}s)");
-            if (asBundle && new FileInfo(path).Length > MaxBundleBytes)
+            if (asBundle && summary.totalSize > MaxBundleBytes)
             {
                 Debug.LogWarning($"[Build] Bundle is over the {MaxBundleBytes / (1024 * 1024)} MB target.");
             }

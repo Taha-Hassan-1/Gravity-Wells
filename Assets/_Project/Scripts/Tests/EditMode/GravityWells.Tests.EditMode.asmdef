@@ -4,6 +4,7 @@
     "references": [
         "GravityWells.Core",
         "GravityWells.Game",
+        "Unity.TextMeshPro",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

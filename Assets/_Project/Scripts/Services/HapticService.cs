@@ -1,78 +1,150 @@
+using System;
 using UnityEngine;
+using GravityWells.Core;
 
 namespace GravityWells.Services
 {
-    // Thin wrapper so gameplay code depends on an abstraction rather than the platform
-    // vibration API directly. Handheld.Vibrate is a fixed ~400 ms buzz that feels like an
-    // alarm, so on Android this asks the vibrator for a short, light effect instead.
+    // Touch feedback, named by the moment (Tap, Grab, Cross, Solve) so gameplay never deals
+    // with a platform API. On Android it plays the system's own touch-feedback effects through
+    // View.performHapticFeedback: the same crisp ticks the keyboard and system buttons give,
+    // with no permission needed. If the phone refuses that (touch feedback switched off in
+    // system settings), it falls back to the vibrator with a predefined effect, which needs the
+    // VIBRATE permission the build adds (Editor/AndroidPermissionPatcher). Handheld.Vibrate is
+    // never used: it is a fixed ~400 ms buzz that feels like an alarm. Nothing runs off Android.
     public sealed class HapticService
     {
+        private const int FlagIgnoreViewSetting = 1; // HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
+
         public bool Enabled { get; set; } = true;
 
-        // The stronger setting: the heaviest built-in click for ticks and a long full-power pulse to confirm.
+        // The stronger setting picks the heavier effect for every moment.
         public bool Strong { get; set; }
 
-        // A light tick: a crossing cleared, a node grabbed.
-        public void Tick()
-        {
-            if (!Enabled)
-            {
-                return;
-            }
-            Play(
-                effectId: Strong ? EffectHeavyClick : EffectClick,
-                fallbackMillis: Strong ? 45 : 28, fallbackAmplitude: Strong ? 255 : 170);
-        }
+        private readonly bool _onAndroid = Application.platform == RuntimePlatform.Android;
+        private readonly jvalue[] _viewArgs = new jvalue[2]; // reused: a tick during a drag allocates nothing
+        private float _lastCrossTime = -1f;
 
-        // A firmer click for the moment the board is solved.
-        public void Confirm()
-        {
-            if (!Enabled)
-            {
-                return;
-            }
-            Play(
-                effectId: EffectHeavyClick,
-                fallbackMillis: Strong ? 80 : 50, fallbackAmplitude: 255);
-        }
-
-#if UNITY_ANDROID && !UNITY_EDITOR
-        // android.os.VibrationEffect predefined ids (API 29+).
-        private const int EffectClick = 0;
-        private const int EffectHeavyClick = 5;
-
+        private bool _ready;
+        private bool _viewFailed;
+        private bool _vibratorFailed;
+        private int _sdk;
+        private AndroidJavaObject _view;
+        private IntPtr _performMethod;
         private AndroidJavaObject _vibrator;
         private AndroidJavaClass _effectClass;
-        private int _sdk;
-        private bool _failed;
 
-        private void Play(int effectId, long fallbackMillis, int fallbackAmplitude)
+        // A button was pressed.
+        public void Tap() => Play(HapticKind.Tap);
+
+        // A dot was picked up.
+        public void Grab() => Play(HapticKind.Grab);
+
+        // A line of the dragged dot crossed, or stopped crossing, another line.
+        public void Cross() => Play(HapticKind.Cross);
+
+        // The board came clean (also played once when the strength setting changes, as a sample).
+        public void Confirm() => Play(HapticKind.Solve);
+
+        private void Play(HapticKind kind)
         {
-            if (_failed)
+            if (!Enabled || !_onAndroid)
+            {
+                return;
+            }
+
+            float now = Time.unscaledTime;
+            if (!HapticPlan.IsDue(kind, now, _lastCrossTime))
+            {
+                return;
+            }
+            if (kind == HapticKind.Cross)
+            {
+                _lastCrossTime = now;
+            }
+
+            EnsureReady();
+            if (!PlayOnView(kind))
+            {
+                PlayOnVibrator(kind);
+            }
+        }
+
+        private void EnsureReady()
+        {
+            if (_ready)
+            {
+                return;
+            }
+            _ready = true;
+
+            try
+            {
+                using (var version = new AndroidJavaClass("android.os.Build$VERSION"))
+                {
+                    _sdk = version.GetStatic<int>("SDK_INT");
+                }
+                using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
+                {
+                    using (var window = activity.Call<AndroidJavaObject>("getWindow"))
+                    {
+                        _view = window.Call<AndroidJavaObject>("getDecorView");
+                        _performMethod = AndroidJNIHelper.GetMethodID(_view.GetRawClass(), "performHapticFeedback", "(II)Z");
+                    }
+                    _vibrator = activity.Call<AndroidJavaObject>("getSystemService", "vibrator");
+                }
+                if (_sdk >= 26)
+                {
+                    _effectClass = new AndroidJavaClass("android.os.VibrationEffect");
+                }
+            }
+            catch (Exception)
+            {
+                // Whatever was not reached stays null and its path reports failure below.
+            }
+        }
+
+        // True when the system accepted the effect.
+        private bool PlayOnView(HapticKind kind)
+        {
+            if (_viewFailed || _view == null || _performMethod == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                _viewArgs[0].i = HapticPlan.FeedbackConstant(kind, _sdk, Strong);
+                _viewArgs[1].i = FlagIgnoreViewSetting;
+                bool played = AndroidJNI.CallBooleanMethod(_view.GetRawObject(), _performMethod, _viewArgs);
+                if (AndroidJNI.ExceptionOccurred() != IntPtr.Zero)
+                {
+                    AndroidJNI.ExceptionClear();
+                    _viewFailed = true;
+                    return false;
+                }
+                return played;
+            }
+            catch (Exception)
+            {
+                _viewFailed = true;
+                return false;
+            }
+        }
+
+        private void PlayOnVibrator(HapticKind kind)
+        {
+            if (_vibratorFailed || _vibrator == null)
             {
                 return;
             }
 
             try
             {
-                if (_vibrator == null)
-                {
-                    using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
-                    using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
-                    using (var version = new AndroidJavaClass("android.os.Build$VERSION"))
-                    {
-                        _vibrator = activity.Call<AndroidJavaObject>("getSystemService", "vibrator");
-                        _sdk = version.GetStatic<int>("SDK_INT");
-                    }
-                    if (_sdk >= 26)
-                    {
-                        _effectClass = new AndroidJavaClass("android.os.VibrationEffect");
-                    }
-                }
-
                 if (_sdk >= 29)
                 {
-                    using (var effect = _effectClass.CallStatic<AndroidJavaObject>("createPredefined", effectId))
+                    using (var effect = _effectClass.CallStatic<AndroidJavaObject>(
+                        "createPredefined", HapticPlan.FallbackEffect(kind, Strong)))
                     {
                         _vibrator.Call("vibrate", effect);
                     }
@@ -80,30 +152,21 @@ namespace GravityWells.Services
                 else if (_sdk >= 26)
                 {
                     using (var effect = _effectClass.CallStatic<AndroidJavaObject>(
-                        "createOneShot", fallbackMillis, fallbackAmplitude))
+                        "createOneShot", HapticPlan.FallbackMillis(kind, Strong), HapticPlan.FallbackAmplitude(kind, Strong)))
                     {
                         _vibrator.Call("vibrate", effect);
                     }
                 }
                 else
                 {
-                    _vibrator.Call("vibrate", fallbackMillis);
+                    _vibrator.Call("vibrate", HapticPlan.FallbackMillis(kind, Strong));
                 }
             }
-            catch (System.Exception)
+            catch (Exception)
             {
-                // No vibrator or a restricted device: haptics are optional, never break play over them.
-                _failed = true;
+                // No motor, or the permission is missing: feedback is optional, never break play over it.
+                _vibratorFailed = true;
             }
         }
-#else
-        private const int EffectClick = 0;
-        private const int EffectHeavyClick = 5;
-
-        // Desktop and Editor builds have no motor (Handheld.Vibrate there only logs a stack trace).
-        private static void Play(int effectId, long fallbackMillis, int fallbackAmplitude)
-        {
-        }
-#endif
     }
 }

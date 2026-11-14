@@ -13,9 +13,10 @@ namespace GravityWells.UI
         private static Sprite _circleSprite;
         private static Sprite _whiteSprite;
         private static Sprite _roundedSprite;
+        private static Sprite _discSprite;
 
         private const int RoundedSize = 96;
-        private const int RoundedRadius = 34;
+        private const int RoundedRadius = 42; // UITokens.CornerRadius (the sprite is slice-scaled, so this is its fixed corner)
         private static readonly Color ShadowColor = new Color(0f, 0f, 0f, 0.26f);
 
         public static RectTransform CreateRect(Transform parent, string name)
@@ -115,7 +116,7 @@ namespace GravityWells.UI
 
         public static Button CreateButton(
             Transform parent, string name, string label, Vector2 size, UIStyle style,
-            UnityAction onClick, bool primary = false, float fontSize = 44f, Sprite icon = null)
+            UnityAction onClick, bool primary = false, float fontSize = 44f, Sprite icon = null, bool tintIcon = true)
         {
             RectTransform rect = CreateRect(parent, name);
             rect.sizeDelta = size;
@@ -141,7 +142,7 @@ namespace GravityWells.UI
                 // Icon-only buttons center the glyph; with a label it sits in a left gutter and the
                 // text is centered in what remains.
                 bool iconOnly = string.IsNullOrEmpty(label);
-                float iconSize = Mathf.Round(size.y * (iconOnly ? 0.5f : 0.42f));
+                float iconSize = IconSizeFor(size, iconOnly);
                 iconImage = CreateIconImage(rect, "Icon", icon, iconSize);
                 if (iconOnly)
                 {
@@ -154,8 +155,221 @@ namespace GravityWells.UI
                 }
             }
 
-            style.RegisterButton(image, text, primary, iconImage);
+            // An icon with colours of its own (the coin) is left out, or the theme would paint it flat.
+            style.RegisterButton(image, text, primary, tintIcon ? iconImage : null);
 
+            return button;
+        }
+
+        public static float IconSizeFor(Vector2 buttonSize, bool iconOnly)
+        {
+            return Mathf.Round(buttonSize.y * (iconOnly ? 0.5f : 0.42f));
+        }
+
+        // A panel one level above a surface (a tile or a cell sitting on a card): the palette's elevated
+        // colour, rounded, with no shadow of its own.
+        public static Image CreateElevated(Transform parent, string name, UIStyle style)
+        {
+            RectTransform rect = CreateRect(parent, name);
+            var image = rect.gameObject.AddComponent<Image>();
+            MakeRounded(image);
+            style.RegisterCard(image);
+            return image;
+        }
+
+        // The title line, and under it a smaller supporting line, for a tile. One rich-text string so the
+        // button's single label (and its theme colour) carries both.
+        public static string TileText(string title, string subtitle)
+        {
+            return string.IsNullOrEmpty(subtitle)
+                ? title
+                : title + "\n<size=74%><alpha=#B8>" + subtitle + "</size>";
+        }
+
+        // A wide, left-aligned button: icon, a title and an optional supporting line. The same widget serves
+        // as the main call to action (primary) and as a secondary card, so every menu entry shares one shape.
+        public static Button CreateTile(
+            Transform parent, string name, string title, string subtitle, Vector2 size, UIStyle style,
+            UnityAction onClick, bool primary, Sprite icon, float titleSize)
+        {
+            Button button = CreateButton(parent, name, TileText(title, subtitle), size, style, onClick, primary, titleSize, icon);
+            TMP_Text label = LabelOf(button);
+            label.alignment = TextAlignmentOptions.MidlineLeft;
+            float gutter = icon != null ? 28f + IconSizeFor(size, false) + UITokens.SpaceM : UITokens.SpaceL;
+            label.rectTransform.offsetMin = new Vector2(gutter, 0f);
+            label.rectTransform.offsetMax = new Vector2(-UITokens.SpaceM, 0f);
+            return button;
+        }
+
+        // A button with no fill, for things that must stay available but should not compete with the main
+        // actions (Settings, How to play). Supporting-text colour, with a press squash like every button.
+        public static Button CreateQuietButton(
+            Transform parent, string name, string label, Vector2 size, UIStyle style, UnityAction onClick, Sprite icon)
+        {
+            RectTransform rect = CreateRect(parent, name);
+            rect.sizeDelta = size;
+
+            var hit = rect.gameObject.AddComponent<Image>();
+            hit.color = Color.clear;
+            hit.canvasRenderer.cullTransparentMesh = false; // a fully transparent graphic must still take taps
+            var button = rect.gameObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.targetGraphic = hit;
+            rect.gameObject.AddComponent<PressFeedback>().Init(button, style);
+            if (onClick != null)
+            {
+                button.onClick.AddListener(onClick);
+            }
+
+            TextMeshProUGUI text = CreateText(
+                rect, "Label", label, UITokens.TextButton * 0.92f, TextAlignmentOptions.Center, style, dim: true);
+            Stretch(text.rectTransform);
+
+            if (icon != null)
+            {
+                float iconSize = UITokens.IconSize;
+                Image iconImage = CreateIconImage(rect, "Icon", icon, iconSize);
+                style.RegisterDimIcon(iconImage);
+                Place(iconImage.rectTransform, new Vector2(0f, 0.5f), new Vector2(UITokens.SpaceM, 0f), new Vector2(iconSize, iconSize));
+                text.rectTransform.offsetMin = new Vector2(UITokens.SpaceM + iconSize, 0f);
+            }
+            return button;
+        }
+
+        // A small rounded chip for a reward or a price ("AD", "12") sitting on a button: the same shape
+        // everywhere an action costs something, so a rewarded action never reads as a plain control.
+        public static Image CreateBadge(Transform parent, string name, Vector2 size, UIStyle style, out TextMeshProUGUI label)
+        {
+            Image chip = CreateElevated(parent, name, style);
+            chip.rectTransform.sizeDelta = size;
+            chip.raycastTarget = false;
+            label = CreateText(chip.rectTransform, "Text", string.Empty, UITokens.TextMeta + 2f, TextAlignmentOptions.Center, style, dim: true);
+            Stretch(label.rectTransform);
+            return chip;
+        }
+
+        // A small, quiet caption above a group ("EXPLORE", "YOUR STREAK").
+        public static TextMeshProUGUI CreateSectionHeader(Transform parent, string name, string text, UIStyle style)
+        {
+            TextMeshProUGUI header = CreateText(
+                parent, name, text.ToUpperInvariant(), UITokens.TextMeta + 1f, TextAlignmentOptions.MidlineLeft, style, dim: true);
+            header.characterSpacing = 6f;
+            return header;
+        }
+
+        // A circular icon-only button, for controls that are known by their glyph (Back, Pause, Undo):
+        // a different shape from the slabs, so navigation chrome and actions stop looking alike.
+        public static Button CreateRoundButton(
+            Transform parent, string name, Sprite icon, float diameter, UIStyle style, UnityAction onClick, bool primary = false)
+        {
+            Button button = CreateButton(
+                parent, name, string.Empty, new Vector2(diameter, diameter), style, onClick, primary, icon: icon);
+            var fill = (Image)button.targetGraphic;
+            fill.sprite = DiscSprite;
+            fill.type = Image.Type.Simple;
+            return button;
+        }
+
+        // An empty rounded card that is one big button; the caller lays its own content out on it.
+        public static Button CreateCardButton(Transform parent, string name, Vector2 size, UIStyle style, UnityAction onClick)
+        {
+            return CreateButton(parent, name, string.Empty, size, style, onClick);
+        }
+
+        // One entry of a bottom navigation bar: a glyph with a small caption under it, no fill.
+        public static Button CreateNavItem(
+            Transform parent, string name, string label, Sprite icon, Vector2 size, UIStyle style, UnityAction onClick)
+        {
+            RectTransform rect = CreateRect(parent, name);
+            rect.sizeDelta = size;
+            Button button = AddClearHit(rect, style, onClick, squash: true);
+
+            float iconSize = Mathf.Round(size.y * 0.42f);
+            Image iconImage = CreateIcon(rect, "Icon", icon, iconSize, style);
+            Place(iconImage.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -size.y * 0.12f), new Vector2(iconSize, iconSize));
+
+            TextMeshProUGUI text = CreateText(
+                rect, "Label", label, UITokens.TextMeta - 4f, TextAlignmentOptions.Center, style, dim: true);
+            Place(text.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, size.y * 0.08f), new Vector2(size.x, 40f));
+            return button;
+        }
+
+        // A flat list row: a label on the left, whatever the caller puts in `accessory` on the right
+        // (a switch, a value, a chevron) and a hairline under it. Rows sit together inside one card,
+        // which is how settings read as a list rather than as a stack of identical buttons.
+        public static Button CreateRow(
+            Transform parent, string name, string label, Vector2 size, UIStyle style, UnityAction onClick,
+            Sprite icon, bool divider, out RectTransform accessory, out TextMeshProUGUI labelText)
+        {
+            RectTransform rect = CreateRect(parent, name);
+            rect.sizeDelta = size;
+            Button button = AddClearHit(rect, style, onClick, squash: false);
+
+            float left = UITokens.SpaceL;
+            if (icon != null)
+            {
+                Image iconImage = CreateIcon(rect, "Icon", icon, UITokens.IconSize, style);
+                Place(iconImage.rectTransform, new Vector2(0f, 0.5f), new Vector2(left, 0f), new Vector2(UITokens.IconSize, UITokens.IconSize));
+                left += UITokens.IconSize + UITokens.SpaceM;
+            }
+
+            labelText = CreateText(rect, "Label", label, UITokens.TextButton, TextAlignmentOptions.MidlineLeft, style);
+            Stretch(labelText.rectTransform);
+            labelText.rectTransform.offsetMin = new Vector2(left, 0f);
+            labelText.rectTransform.offsetMax = new Vector2(-UITokens.SpaceL, 0f);
+
+            accessory = CreateRect(rect, "Accessory");
+            Place(accessory, new Vector2(1f, 0.5f), new Vector2(-UITokens.SpaceL, 0f), new Vector2(0f, size.y));
+
+            if (divider)
+            {
+                Image line = CreateFlat(rect, "Divider", Color.clear);
+                line.raycastTarget = false;
+                line.rectTransform.anchorMin = new Vector2(0f, 0f);
+                line.rectTransform.anchorMax = new Vector2(1f, 0f);
+                line.rectTransform.pivot = new Vector2(0.5f, 0f);
+                line.rectTransform.offsetMin = new Vector2(UITokens.SpaceL, 0f);
+                line.rectTransform.offsetMax = new Vector2(-UITokens.SpaceL, 3f);
+                style.RegisterCustom(palette =>
+                {
+                    Color ink = palette.Text;
+                    line.color = new Color(ink.r, ink.g, ink.b, 0.12f);
+                });
+            }
+            return button;
+        }
+
+        // A dim value or caption on the right of a row ("Strong", "$2.99").
+        public static TextMeshProUGUI CreateRowValue(RectTransform accessory, string text, UIStyle style)
+        {
+            TextMeshProUGUI value = CreateText(
+                accessory, "Value", text, UITokens.TextSupporting, TextAlignmentOptions.MidlineRight, style, dim: true);
+            Place(value.rectTransform, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(420f, 60f));
+            return value;
+        }
+
+        public static Image CreateRowChevron(RectTransform accessory, UIStyle style)
+        {
+            Image chevron = CreateIconImage(accessory, "Chevron", UIIcons.Get("chevron"), 40f);
+            style.RegisterDimIcon(chevron);
+            Place(chevron.rectTransform, new Vector2(1f, 0.5f), Vector2.zero, new Vector2(40f, 40f));
+            return chevron;
+        }
+
+        // An invisible, tappable area with the usual tap sound.
+        private static Button AddClearHit(RectTransform rect, UIStyle style, UnityAction onClick, bool squash)
+        {
+            var hit = rect.gameObject.AddComponent<Image>();
+            hit.color = Color.clear;
+            hit.canvasRenderer.cullTransparentMesh = false; // a fully transparent graphic must still take taps
+            var button = rect.gameObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.targetGraphic = hit;
+            rect.gameObject.AddComponent<PressFeedback>().Init(button, style, squash);
+            if (onClick != null)
+            {
+                button.onClick.AddListener(onClick);
+            }
             return button;
         }
 
@@ -354,7 +568,7 @@ namespace GravityWells.UI
             }
         }
 
-        // An antialiased disc, for dots and indicators.
+        // The same antialiased disc the board's nodes use, for dots in the diagrams.
         public static Sprite CircleSprite
         {
             get
@@ -364,6 +578,19 @@ namespace GravityWells.UI
                     _circleSprite = Game.CircleSprite.Create(64);
                 }
                 return _circleSprite;
+            }
+        }
+
+        // A crisp disc for round buttons and switch knobs (the diagram disc is too small to scale up).
+        public static Sprite DiscSprite
+        {
+            get
+            {
+                if (_discSprite == null)
+                {
+                    _discSprite = Game.CircleSprite.Create(192);
+                }
+                return _discSprite;
             }
         }
 
@@ -385,7 +612,7 @@ namespace GravityWells.UI
             var points = new Vector2[10];
             float center = size * 0.5f;
             float outer = size * 0.48f;
-            float inner = outer * 0.42f;
+            float inner = outer * 0.54f; // a full, friendly star; the classic 0.38 ratio reads thin and spiky at this size
             for (int i = 0; i < 10; i++)
             {
                 float angle = (90f + i * 36f) * Mathf.Deg2Rad;

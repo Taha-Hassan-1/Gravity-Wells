@@ -13,10 +13,14 @@ namespace GravityWells.UI
         private Selectable _selectable;
         private UIStyle _style;
 
-        public void Init(Selectable selectable, UIStyle style)
+        private bool _squash = true;
+
+        // squash: false for wide rows, where shrinking the whole row looks wrong; they still click.
+        public void Init(Selectable selectable, UIStyle style, bool squash = true)
         {
             _selectable = selectable;
             _style = style;
+            _squash = squash;
         }
 
         public void OnPointerDown(PointerEventData eventData)
@@ -26,7 +30,10 @@ namespace GravityWells.UI
             {
                 return;
             }
-            transform.localScale = Vector3.one * PressedScale;
+            if (_squash)
+            {
+                transform.localScale = Vector3.one * PressedScale;
+            }
             _style?.ButtonPressed?.Invoke();
         }
 
