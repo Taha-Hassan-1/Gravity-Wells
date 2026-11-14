@@ -10,14 +10,16 @@ namespace GravityWells.Core
         public readonly float GateWidth;
         public readonly float GoalRadius;
         public readonly int Asteroids;
+        public readonly bool ForceRepulsor;   // the level that introduces repulsors must contain one
 
-        public LevelPlan(int wells, int gates, float gateWidth, float goalRadius, int asteroids)
+        public LevelPlan(int wells, int gates, float gateWidth, float goalRadius, int asteroids, bool forceRepulsor = false)
         {
             Wells = wells;
             Gates = gates;
             GateWidth = gateWidth;
             GoalRadius = goalRadius;
             Asteroids = asteroids;
+            ForceRepulsor = forceRepulsor;
         }
     }
 
@@ -65,7 +67,21 @@ namespace GravityWells.Core
                 gates = 2;
             }
 
-            return new LevelPlan(wells, gates, GateWidthForLevel(level), goalRadius, AsteroidsForLevel(level));
+            int asteroids = AsteroidsForLevel(level);
+            bool forceRepulsor = false;
+
+            // The levels that introduce a new piece teach it and nothing else: level 12 brings the first asteroid
+            // on the same wells and gates as level 11, and level 35 brings the first repulsor, certain to be in
+            // the level, with a lighter load than the curve would give so the new thing is the only hard thing.
+            if (level == GameConfig.RepulsorFirstLevel)
+            {
+                wells = 2;
+                gates = Mathf.Min(gates, 3);
+                asteroids = Mathf.Min(asteroids, 1);
+                forceRepulsor = true;
+            }
+
+            return new LevelPlan(wells, gates, GateWidthForLevel(level), goalRadius, asteroids, forceRepulsor);
         }
     }
 }

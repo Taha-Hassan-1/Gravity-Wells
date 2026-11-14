@@ -135,7 +135,7 @@ namespace GravityWells.Tests
             int asteroidLevels = 0;
             foreach (LevelDefinition level in Levels)
             {
-                Assert.AreEqual(DifficultyCurve.AsteroidsForLevel(level.Level), level.Asteroids.Length, Describe(level));
+                Assert.AreEqual(DifficultyCurve.PlanForLevel(level.Level).Asteroids, level.Asteroids.Length, Describe(level));
                 if (level.Asteroids.Length == 0)
                 {
                     continue;
@@ -225,6 +225,36 @@ namespace GravityWells.Tests
                 withRepulsors += repulsors > 0 ? 1 : 0;
             }
             Assert.Greater(withRepulsors, 100, "repulsors do turn up");
+        }
+
+        [Test]
+        public void TheLevelThatIntroducesRepulsors_HasExactlyOne_AndNothingElseHard()
+        {
+            for (int seed = 0; seed < 30; seed++)
+            {
+                LevelDefinition level = LevelGenerator.Generate(seed * 211 + 5, GameConfig.RepulsorFirstLevel);
+                int repulsors = 0;
+                foreach (Well well in level.SolutionWells)
+                {
+                    repulsors += well.Kind == WellKind.Repulsor ? 1 : 0;
+                }
+                Assert.AreEqual(1, repulsors, "seed " + seed);
+                Assert.AreEqual(2, level.Par, "one attractor and the repulsor");
+                Assert.LessOrEqual(level.Gates.Length, 3);
+                Assert.LessOrEqual(level.Asteroids.Length, 1);
+                Assert.AreEqual(2, level.RepulsorBudget);
+            }
+        }
+
+        [Test]
+        public void TheLevelThatIntroducesAsteroids_BringsOne_OnTheWellsAndGatesOfTheLevelBefore()
+        {
+            LevelPlan before = DifficultyCurve.PlanForLevel(GameConfig.AsteroidFirstLevel - 1);
+            LevelPlan first = DifficultyCurve.PlanForLevel(GameConfig.AsteroidFirstLevel);
+            Assert.AreEqual(0, before.Asteroids);
+            Assert.AreEqual(1, first.Asteroids);
+            Assert.AreEqual(before.Wells, first.Wells);
+            Assert.AreEqual(before.Gates, first.Gates);
         }
 
         [Test]

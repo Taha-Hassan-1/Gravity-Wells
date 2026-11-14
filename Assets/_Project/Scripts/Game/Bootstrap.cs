@@ -31,7 +31,13 @@ namespace GravityWells.Game
             var save = new SaveService(dataDirectory);
             save.Data.SessionCount++;
             save.Save();
+            Func<DateTime> utcNow = () => DateTime.UtcNow;
             var progression = new ProgressionService(save);
+            var economy = new EconomyService(save);
+            var quests = new QuestService(save, economy, utcNow);
+            var rewards = new RewardService(economy, quests);
+            var campaign = new CampaignMode(progression, rewards);
+            var daily = new DailyMode(save, rewards, utcNow);
 
             var themes = gameObject.AddComponent<ThemeController>();
             themes.Init(ValidThemeIndex(save.Data), new LineStyleService(save));
@@ -50,6 +56,25 @@ namespace GravityWells.Game
             };
             ui.Style.ButtonPressed = audio.PlayClick;
 
+            // External services, all behind interfaces and all registered here and only here. Ad networks are
+            // combined by priority (GameConfig.AdProviderOrder); only the ones named in the order are constructed.
+            // No real network adapter exists until the Services phase, so on a device the order names one that is
+            // not registered and the game honestly says "no ad right now"; the stub is never in the device order
+            // because it always "completes" and would hand out rewards for free.
+            var adRegistry = new AdProviderRegistry();
+            adRegistry.Register(StubAdService.ProviderName, () => new StubAdService());
+#if UNITY_ANDROID && !UNITY_EDITOR
+            string adOrder = GameConfig.AdProviderOrder;
+#else
+            string adOrder = GameConfig.EditorAdProviderOrder;
+#endif
+            IAdService ads = new WaterfallAdService(adRegistry, AdProviderOrder.Parse(adOrder), Debug.LogWarning);
+            IAnalyticsService analytics = new LogAnalyticsService();
+            var monetization = new MonetizationController(
+                ads, new StubPurchaseService(), new StubConsentService(), analytics, save, () => Time.realtimeSinceStartup);
+            var adFlow = new AdFlow(monetization, ui, () => Time.unscaledTime);
+            ui.AdOverlayDismissed = adFlow.Dismiss;
+
             Transform boardRoot = new GameObject("Board").transform;
             boardRoot.SetParent(transform, false);
             var field = new FieldView(boardRoot);
@@ -64,13 +89,18 @@ namespace GravityWells.Game
             var mark = new CrashMarkView(boardRoot);
 
             var gameManager = gameObject.AddComponent<GameManager>();
+            var appFlow = gameObject.AddComponent<AppFlow>();
             var hud = new GameHUD(
                 ui, ui.Style, gameManager.TogglePause, gameManager.Undo, gameManager.Restart, gameManager.ShowHint,
                 gameManager.Launch);
-            var pause = new PausePanel(ui, ui.Style, gameManager.Resume, gameManager.RestartFromPause);
-            var result = new LevelCompletePanel(ui, ui.Style, gameManager.NextLevel, gameManager.ReplayLevel);
+            var pause = new PausePanel(ui, ui.Style, gameManager.Resume, gameManager.RestartFromPause, gameManager.GoToMenu);
+            var result = new LevelCompletePanel(ui, ui.Style, gameManager.NextLevel, gameManager.ReplayLevel, gameManager.GoToMenu);
+            var menu = new MainMenuScreen(appFlow, ui, ui.Style);
+            var settings = new SettingsScreen(appFlow, ui, ui.Style);
+            var stats = new StatsScreen(appFlow, ui, ui.Style);
+            var themesScreen = new ThemesScreen(appFlow, ui, ui.Style);
             var feel = new FeelController(audio, haptics, field, path, wells, gates, ship, trail, burst, mark, hud);
-            foreach (UIScreen screen in new UIScreen[] { hud, pause, result })
+            foreach (UIScreen screen in new UIScreen[] { hud, pause, result, menu, settings, stats, themesScreen })
             {
                 ui.AddScreen(screen);
             }
@@ -79,7 +109,7 @@ namespace GravityWells.Game
                 new GameDependencies
                 {
                     Camera = camera,
-                    Mode = new CampaignMode(progression),
+                    Mode = campaign,
                     Ui = ui,
                     Hud = hud,
                     Pause = pause,
@@ -94,7 +124,13 @@ namespace GravityWells.Game
                     Feel = feel,
                     Haptics = haptics,
                     Audio = audio,
+                    Economy = economy,
+                    AdFlow = adFlow,
+                    Save = save,
+                    ShowMainMenu = appFlow.ShowMainMenu,
                 });
+            appFlow.Init(gameManager, ui, themes, save, progression, economy, quests, campaign, daily, haptics, audio, monetization);
+            appFlow.SetScreens(menu, settings, stats, themesScreen);
 
             ui.FinishBuild(); // the toast and the ad overlay go on top of every screen
 
@@ -108,8 +144,9 @@ namespace GravityWells.Game
             };
             themes.Broadcast();
 
+            monetization.Initialize();
             audio.PlayMusic(MusicTrack.Orbit);
-            gameManager.StartCampaign();
+            appFlow.ShowMainMenu();
         }
 
         // A save from a future or corrupt build could name a theme that does not exist or is not unlocked yet;

@@ -97,7 +97,8 @@ namespace GravityWells.Core
                     return null;
                 }
                 WellKind kind = WellKind.Attractor;
-                if (level >= GameConfig.RepulsorFirstLevel && w > 0 && rng.NextDouble() < GameConfig.RepulsorChance)
+                bool chance = level >= GameConfig.RepulsorFirstLevel && w > 0 && rng.NextDouble() < GameConfig.RepulsorChance;
+                if (chance || (plan.ForceRepulsor && w == 1))
                 {
                     kind = WellKind.Repulsor;
                     repulsors++;

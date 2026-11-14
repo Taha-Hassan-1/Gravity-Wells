@@ -4,13 +4,12 @@ namespace GravityWells.Core
 {
     public enum QuestKind
     {
-        SolveLevels,         // solve N levels
-        EarnThreeStars,      // N solves at par or better
-        SolveWithoutUndo,    // N solves where Undo was never used
-        SolveWithoutPowerUp, // N solves with no power-up or Assist
-        MakeMoves,           // N moves across solved levels
-        UsePowerUp,          // use any power-up or Assist N times
-        PlayDaily,           // finish the daily challenge
+        SolveLevels,      // solve N levels
+        EarnStars,        // earn N stars in all
+        SolveUnderPar,    // solve N levels with fewer wells than par
+        SolveFirstTry,    // solve N levels on the first launch
+        SolveWithoutHint, // solve N levels without taking a hint
+        PlayDaily,        // finish the daily challenge
     }
 
     public readonly struct QuestDef
@@ -31,11 +30,10 @@ namespace GravityWells.Core
             switch (Kind)
             {
                 case QuestKind.SolveLevels: return $"Solve {Target} levels";
-                case QuestKind.EarnThreeStars: return Target == 1 ? "Earn 3 stars on a level" : $"Earn 3 stars on {Target} levels";
-                case QuestKind.SolveWithoutUndo: return $"Solve {Target} levels without Undo";
-                case QuestKind.SolveWithoutPowerUp: return $"Solve {Target} levels without power-ups";
-                case QuestKind.MakeMoves: return $"Make {Target} moves";
-                case QuestKind.UsePowerUp: return Target == 1 ? "Use a power-up" : $"Use {Target} power-ups";
+                case QuestKind.EarnStars: return $"Earn {Target} stars";
+                case QuestKind.SolveUnderPar: return Target == 1 ? "Solve a level under par" : $"Solve {Target} levels under par";
+                case QuestKind.SolveFirstTry: return Target == 1 ? "Solve a level on the first launch" : $"Solve {Target} levels on the first launch";
+                case QuestKind.SolveWithoutHint: return $"Solve {Target} levels without a hint";
                 default: return "Finish the daily challenge";
             }
         }
@@ -45,18 +43,18 @@ namespace GravityWells.Core
     public readonly struct LevelOutcome
     {
         public readonly int Stars;
-        public readonly int Moves;
+        public readonly bool UnderPar;
+        public readonly int Launches;
         public readonly bool IsDaily;
-        public readonly bool UsedUndo;
-        public readonly bool UsedPowerUp;
+        public readonly bool UsedHint;
 
-        public LevelOutcome(int stars, int moves, bool isDaily, bool usedUndo, bool usedPowerUp)
+        public LevelOutcome(int stars, bool underPar, int launches, bool isDaily, bool usedHint)
         {
             Stars = stars;
-            Moves = moves;
+            UnderPar = underPar;
+            Launches = launches;
             IsDaily = isDaily;
-            UsedUndo = usedUndo;
-            UsedPowerUp = usedPowerUp;
+            UsedHint = usedHint;
         }
     }
 
@@ -69,8 +67,8 @@ namespace GravityWells.Core
 
         private static readonly QuestKind[] Pool =
         {
-            QuestKind.SolveLevels, QuestKind.EarnThreeStars, QuestKind.SolveWithoutUndo,
-            QuestKind.SolveWithoutPowerUp, QuestKind.MakeMoves, QuestKind.UsePowerUp, QuestKind.PlayDaily,
+            QuestKind.SolveLevels, QuestKind.EarnStars, QuestKind.SolveUnderPar,
+            QuestKind.SolveFirstTry, QuestKind.SolveWithoutHint, QuestKind.PlayDaily,
         };
 
         public static QuestDef[] ForDay(int dayNumber)
@@ -86,7 +84,7 @@ namespace GravityWells.Core
                 {
                     pick = random.Next(Pool.Length);
                 }
-                while (used[pick] || ConflictsWithChosen(Pool[pick], chosen, i));
+                while (used[pick]);
 
                 used[pick] = true;
                 chosen[i] = Build(Pool[pick], random);
@@ -94,32 +92,15 @@ namespace GravityWells.Core
             return chosen;
         }
 
-        // "Use a power-up" and "solve without power-ups" would ask for opposite things.
-        private static bool ConflictsWithChosen(QuestKind kind, QuestDef[] chosen, int count)
-        {
-            for (int i = 0; i < count; i++)
-            {
-                QuestKind other = chosen[i].Kind;
-                bool opposed = (kind == QuestKind.UsePowerUp && other == QuestKind.SolveWithoutPowerUp)
-                    || (kind == QuestKind.SolveWithoutPowerUp && other == QuestKind.UsePowerUp);
-                if (opposed)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         private static QuestDef Build(QuestKind kind, Random random)
         {
             switch (kind)
             {
                 case QuestKind.SolveLevels: return new QuestDef(kind, random.Next(3, 6), 30);
-                case QuestKind.EarnThreeStars: return new QuestDef(kind, random.Next(1, 3), 40);
-                case QuestKind.SolveWithoutUndo: return new QuestDef(kind, random.Next(2, 4), 30);
-                case QuestKind.SolveWithoutPowerUp: return new QuestDef(kind, random.Next(2, 4), 30);
-                case QuestKind.MakeMoves: return new QuestDef(kind, random.Next(5, 9) * 5, 25);
-                case QuestKind.UsePowerUp: return new QuestDef(kind, random.Next(1, 3), 25);
+                case QuestKind.EarnStars: return new QuestDef(kind, random.Next(4, 8), 35);
+                case QuestKind.SolveUnderPar: return new QuestDef(kind, random.Next(1, 3), 40);
+                case QuestKind.SolveFirstTry: return new QuestDef(kind, random.Next(2, 4), 30);
+                case QuestKind.SolveWithoutHint: return new QuestDef(kind, random.Next(2, 5), 25);
                 default: return new QuestDef(kind, 1, 35);
             }
         }
@@ -130,12 +111,11 @@ namespace GravityWells.Core
             switch (kind)
             {
                 case QuestKind.SolveLevels: return 1;
-                case QuestKind.EarnThreeStars: return outcome.Stars >= 3 ? 1 : 0;
-                case QuestKind.SolveWithoutUndo: return outcome.UsedUndo ? 0 : 1;
-                case QuestKind.SolveWithoutPowerUp: return outcome.UsedPowerUp ? 0 : 1;
-                case QuestKind.MakeMoves: return outcome.Moves;
-                case QuestKind.PlayDaily: return outcome.IsDaily ? 1 : 0;
-                default: return 0; // UsePowerUp advances when one is used, not when a level ends
+                case QuestKind.EarnStars: return outcome.Stars;
+                case QuestKind.SolveUnderPar: return outcome.UnderPar ? 1 : 0;
+                case QuestKind.SolveFirstTry: return outcome.Launches == 1 ? 1 : 0;
+                case QuestKind.SolveWithoutHint: return outcome.UsedHint ? 0 : 1;
+                default: return outcome.IsDaily ? 1 : 0;
             }
         }
 

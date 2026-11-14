@@ -90,6 +90,11 @@ namespace GravityWells.Core
         public const float TrailDotSpacingSeconds = 0.028f;  // of flight time between trail dots
         public const float MusicLoudnessRms = 0.2f;          // the shared loudness every track is levelled to
 
+        // --- Modes and meta ---
+        public const int DailyLevel = 40;                    // the daily puzzle is built at the difficulty of this campaign level
+        public const int FailsBeforeExtraWellOffer = 5;      // the rewarded Extra Well is offered after this many failed launches
+        public const string PrivacyPolicyUrl = "";           // empty until the policy page exists (the Settings row says so)
+
         // --- Meta ---
         public const float ThemeCrossfadeDuration = 0.3f;
 

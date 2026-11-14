@@ -9,6 +9,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using GravityWells.Core;
 using GravityWells.Game;
+using GravityWells.Meta;
 using GravityWells.UI;
 
 namespace GravityWells.Tests
@@ -37,6 +38,12 @@ namespace GravityWells.Tests
             }
             Directory.CreateDirectory(DataDir);
             Environment.SetEnvironmentVariable(Bootstrap.DataDirectoryVariable, DataDir);
+
+            // The level-1 lesson would move wells by itself in every test that waits a few frames; a player who
+            // has already shown they know how does not see it. The lesson has its own test.
+            var seeded = new SaveService(DataDir);
+            seeded.Data.TutorialSeen = true;
+            seeded.Save();
 
             EditorSceneManager.OpenScene(ScenePath);
             yield return new EnterPlayMode();
@@ -70,6 +77,17 @@ namespace GravityWells.Tests
 
         private static UIRoot Ui(GameManager game) => game.GetComponent<UIRoot>();
 
+        private static AppFlow Flow(GameManager game) => game.GetComponent<AppFlow>();
+
+        // Starts the campaign the way the Play button does, from the menu the app opens on.
+        private static GameManager PlayingGame()
+        {
+            GameManager game = Game();
+            Assert.IsInstanceOf<MainMenuScreen>(Ui(game).Current, "the app opens on the main menu");
+            Flow(game).Play();
+            return game;
+        }
+
         // Frames until this much real time has passed (screens fade in over a fraction of a second).
         private static IEnumerator WaitRealtime(double seconds)
         {
@@ -96,7 +114,7 @@ namespace GravityWells.Tests
         [UnityTest]
         public IEnumerator Level1_SolvedWithItsWells_FliesExactlyTheShownLine_AndWins()
         {
-            GameManager game = Game();
+            GameManager game = PlayingGame();
             Assert.IsInstanceOf<GameHUD>(Ui(game).Current);
             Assert.AreEqual(GameManager.GameState.Planning, game.State);
             Assert.AreEqual(1, game.Level.Level);
@@ -170,7 +188,7 @@ namespace GravityWells.Tests
         [UnityTest]
         public IEnumerator AFailedLaunch_KeepsTheWells_AndCostsOnlyTheCount()
         {
-            GameManager game = Game();
+            GameManager game = PlayingGame();
             game.Layout.Place(WellKind.Attractor, new Vector2(0.85f, 1.35f)); // far from anything useful
             game.Resimulate();
             Assert.AreNotEqual(FlightOutcome.Won, game.Trajectory.Outcome);
@@ -193,7 +211,7 @@ namespace GravityWells.Tests
         [UnityTest]
         public IEnumerator UndoRestartAndPause_BehaveAndNeverStrandTheGame()
         {
-            GameManager game = Game();
+            GameManager game = PlayingGame();
             UIRoot ui = Ui(game);
 
             game.Layout.Place(WellKind.Attractor, new Vector2(0.3f, 0.9f));
@@ -230,7 +248,7 @@ namespace GravityWells.Tests
         [UnityTest]
         public IEnumerator ALaterLevel_WithEveryPiece_PlaysThroughToo()
         {
-            GameManager game = Game();
+            GameManager game = PlayingGame();
             var level = LevelGenerator.Generate(DifficultyCurve.SeedForLevel(60), 60);
             game.StartLevel(level);
             yield return null;
@@ -254,7 +272,7 @@ namespace GravityWells.Tests
         [UnityTest]
         public IEnumerator TheFeel_AnswersEachMoment_WithoutErrors_AndLeavesNothingBehind()
         {
-            GameManager game = Game();
+            GameManager game = PlayingGame();
             Well solution = game.Level.SolutionWells[0];
 
             // 1. A well is carried across the field and held where it is not yet right: the preview follows it.
@@ -325,6 +343,321 @@ namespace GravityWells.Tests
             yield return WaitRealtime(0.2);
             SaveShot("16-fresh");
             Assert.AreEqual(GameManager.GameState.Planning, game.State);
+        }
+
+        // ---- Phase 4: the app around the board ----
+
+        // Solves the current level the way a player's drags would, without reading the stored solution: the
+        // Core solver finds a layout and its wells are put down one by one.
+        private static void SolveWithTheSolver(GameManager game)
+        {
+            var wells = new Well[GameConfig.MaxWells];
+            SolverResult result = Solver.Solve(game.Level, game.Level.Seed, 20000, wells, new Trajectory());
+            game.Layout.Clear();
+            if (!result.Solved)
+            {
+                // About one level in seventy defeats the solver in 20,000 flights (docs/features/03). The date-seeded
+                // daily must not make a test depend on the calendar, so it falls back to the level's own solution.
+                Debug.LogWarning("[Smoke] the solver did not find level " + game.Level.Level + " (seed " + game.Level.Seed + "); using its own solution");
+                PlaceTheSolution(game);
+                return;
+            }
+            for (int i = 0; i < result.WellCount; i++)
+            {
+                Assert.GreaterOrEqual(game.Layout.Place(wells[i].Kind, wells[i].Position), 0);
+            }
+            game.Resimulate();
+            Assert.AreEqual(FlightOutcome.Won, game.Trajectory.Outcome);
+        }
+
+        private static IEnumerator FlyToTheResult(GameManager game)
+        {
+            game.Launch();
+            double deadline = Deadline();
+            while (game.State != GameManager.GameState.Result && !Expired(deadline))
+            {
+                if (game.State == GameManager.GameState.Flying)
+                {
+                    game.Playback.SpeedUp(); // the tap that speeds a flight up, so the test does not wait in real time
+                }
+                yield return null;
+            }
+            Assert.AreEqual(GameManager.GameState.Result, game.State);
+        }
+
+        [UnityTest]
+        public IEnumerator EveryScreen_Opens_AndBackAlwaysLeadsSomewhere()
+        {
+            GameManager game = Game();
+            UIRoot ui = Ui(game);
+            AppFlow flow = Flow(game);
+            Assert.IsInstanceOf<MainMenuScreen>(ui.Current);
+            yield return WaitRealtime(0.4);
+            SaveShot("20-menu");
+
+            // Settings, Stats and Themes each open, and Back returns to the menu.
+            flow.ShowSettings();
+            yield return WaitRealtime(0.4);
+            Assert.IsInstanceOf<SettingsScreen>(ui.Current);
+            SaveShot("21-settings");
+            ui.Current.OnBack();
+            Assert.IsInstanceOf<MainMenuScreen>(ui.Current);
+
+            flow.ShowStats();
+            yield return WaitRealtime(0.4);
+            Assert.IsInstanceOf<StatsScreen>(ui.Current);
+            SaveShot("22-stats");
+            ui.Current.OnBack();
+            Assert.IsInstanceOf<MainMenuScreen>(ui.Current);
+
+            flow.ShowThemes();
+            yield return WaitRealtime(0.4);
+            Assert.IsInstanceOf<ThemesScreen>(ui.Current);
+            SaveShot("23-themes");
+            ui.Current.OnBack();
+            Assert.IsInstanceOf<MainMenuScreen>(ui.Current);
+
+            // In a level: Back pauses, Back again resumes; the pause card has a Menu; the result card's Back replays.
+            flow.Play();
+            yield return null;
+            Assert.IsInstanceOf<GameHUD>(ui.Current);
+            ui.Current.OnBack();
+            Assert.IsInstanceOf<PausePanel>(ui.Current);
+            Assert.IsTrue(game.IsPaused);
+            ui.Current.OnBack();
+            Assert.IsInstanceOf<GameHUD>(ui.Current);
+            Assert.IsFalse(game.IsPaused);
+
+            game.Pause();
+            yield return WaitRealtime(0.4);
+            SaveShot("24-pause");
+            game.GoToMenu();
+            Assert.IsInstanceOf<MainMenuScreen>(ui.Current);
+            Assert.AreEqual(GameManager.GameState.Menu, game.State);
+            Assert.AreEqual(1f, Time.timeScale);
+
+            // The menu's own Back does not strand the player: the first press only warns.
+            ui.Current.OnBack();
+            Assert.IsInstanceOf<MainMenuScreen>(ui.Current);
+        }
+
+        [UnityTest]
+        public IEnumerator TheSettings_Stick_AndSurviveARestartOfTheApp()
+        {
+            GameManager game = Game();
+            AppFlow flow = Flow(game);
+
+            flow.SetSoundOn(false);
+            flow.SetMusicOn(false);
+            flow.CycleVibrations(); // on -> strong
+            Assert.IsTrue(flow.Save.Data.VibrationStrong);
+            flow.CycleVibrations(); // strong -> off
+            Assert.IsFalse(flow.Save.Data.HapticsOn);
+            flow.CycleVibrations(); // off -> on
+            Assert.IsTrue(flow.Save.Data.HapticsOn);
+            Assert.IsFalse(flow.Save.Data.VibrationStrong);
+
+            Assert.IsFalse(flow.SelectTheme(1), "Deep Navy is locked until level 10");
+            Assert.IsTrue(flow.SelectTheme(ThemeService.ColorSafeIndex), "the colour-safe palette is open from level 1");
+            Assert.IsFalse(flow.IsThemeUnlocked(7));
+            yield return null;
+
+            var reloaded = new SaveService(DataDir);
+            Assert.IsFalse(reloaded.Data.SoundOn);
+            Assert.IsFalse(reloaded.Data.MusicOn);
+            Assert.IsTrue(reloaded.Data.HapticsOn);
+            Assert.AreEqual(ThemeService.ColorSafeIndex, reloaded.Data.SelectedThemeId);
+        }
+
+        [UnityTest]
+        public IEnumerator TheDaily_IsSolvedFromTheMenu_PaysOnce_AndLeadsHome()
+        {
+            GameManager game = Game();
+            UIRoot ui = Ui(game);
+            AppFlow flow = Flow(game);
+            int seedToday = DailyChallengeService.SeedForDate(DateTime.UtcNow);
+
+            flow.PlayDaily();
+            yield return null;
+            Assert.AreEqual(seedToday, game.Level.Seed, "the same level for the same UTC date");
+            Assert.AreEqual(GameConfig.DailyLevel, game.Level.Level);
+
+            SolveWithTheSolver(game);
+            yield return FlyToTheResult(game);
+            LevelResult first = game.LastResult;
+            Assert.IsTrue(first.IsDaily);
+            Assert.IsFalse(first.CanContinue);
+            Assert.Greater(first.Coins, 0);
+            Assert.AreEqual(1, flow.Save.Data.DailyStreak);
+            yield return WaitRealtime(0.5);
+            SaveShot("25-daily-result");
+
+            game.GoToMenu();
+            yield return WaitRealtime(0.3);
+            Assert.IsTrue(flow.Daily.CompletedToday);
+            SaveShot("26-menu-after-daily");
+
+            // Again: for fun, and paying nothing.
+            int coins = flow.Economy.Coins;
+            flow.PlayDaily();
+            yield return null;
+            SolveWithTheSolver(game);
+            yield return FlyToTheResult(game);
+            Assert.AreEqual(0, game.LastResult.Coins);
+            Assert.AreEqual(coins, flow.Economy.Coins);
+            Assert.AreEqual(1, flow.Save.Data.DailyStreak);
+        }
+
+        [UnityTest]
+        public IEnumerator Levels1To5_AreSolvedByTheSolver_ThroughTheRealGame_AndProgressIsSaved()
+        {
+            GameManager game = PlayingGame();
+            AppFlow flow = Flow(game);
+
+            for (int number = 1; number <= 5; number++)
+            {
+                Assert.AreEqual(number, game.Level.Level);
+                SolveWithTheSolver(game);
+                yield return FlyToTheResult(game);
+                Assert.Greater(game.LastResult.Stars, 0);
+                Assert.Greater(flow.Progression.StarsFor(number), 0, "level " + number + " is recorded");
+                if (number < 5)
+                {
+                    game.NextLevel();
+                    yield return null;
+                }
+            }
+
+            Assert.AreEqual(6, flow.Progression.HighestLevelUnlocked);
+            Assert.Greater(flow.Economy.Coins, 0);
+
+            // Force-quit and reopen: the save on disk has all of it.
+            var reloaded = new SaveService(DataDir);
+            var progression = new ProgressionService(reloaded);
+            Assert.AreEqual(6, progression.CurrentLevel);
+            for (int number = 1; number <= 5; number++)
+            {
+                Assert.Greater(progression.StarsFor(number), 0);
+            }
+            Assert.AreEqual(flow.Economy.Coins, reloaded.Data.Coins);
+        }
+
+        [UnityTest]
+        public IEnumerator AHint_CostsThirtyCoins_OrAnAdWhenShort_AndNothingWhenNoneIsFound()
+        {
+            GameManager game = PlayingGame();
+            AppFlow flow = Flow(game);
+            yield return null;
+            Assert.AreEqual(0, flow.Economy.Coins);
+
+            // Short of coins: the (stub) rewarded ad pays for it, and no coins move.
+            game.ShowHint();
+            yield return WaitRealtime(0.5); // the ad flow may take a few frames to open the (stub) ad
+            Assert.IsTrue(game.UsedHint);
+            Assert.AreEqual(0, flow.Economy.Coins);
+
+            // With coins: thirty are spent.
+            flow.Economy.Earn(100);
+            game.ShowHint();
+            Assert.AreEqual(70, flow.Economy.Coins);
+
+            // When the layout already wins there is nothing to suggest, so nothing is charged.
+            SolveWithTheSolver(game);
+            game.ShowHint();
+            Assert.AreEqual(70, flow.Economy.Coins);
+        }
+
+        [UnityTest]
+        public IEnumerator TheExtraWell_IsOfferedAfterFiveMisses_AndAWinWithItIsOneStar()
+        {
+            GameManager game = PlayingGame();
+            AppFlow flow = Flow(game);
+            UIRoot ui = Ui(game);
+            Transform offer = ui.CanvasTransform.Find("GameHUD/Content/ExtraWell");
+            Assert.IsNotNull(offer);
+            Assert.IsFalse(offer.gameObject.activeSelf, "not offered at the start");
+
+            double deadline = Deadline();
+            for (int miss = 1; miss <= GameConfig.FailsBeforeExtraWellOffer; miss++)
+            {
+                game.Layout.Clear();
+                game.Layout.Place(WellKind.Attractor, new Vector2(0.9f, 1.4f)); // a well that helps nothing
+                game.Resimulate();
+                game.Launch();
+                while (game.State != GameManager.GameState.Planning && !Expired(deadline))
+                {
+                    if (game.State == GameManager.GameState.Flying)
+                    {
+                        game.Playback.SpeedUp();
+                    }
+                    yield return null;
+                }
+                Assert.AreEqual(miss, game.Launches);
+                if (miss < GameConfig.FailsBeforeExtraWellOffer)
+                {
+                    Assert.IsFalse(offer.gameObject.activeSelf, "not offered after " + miss + " misses");
+                }
+            }
+            yield return null;
+            Assert.IsTrue(offer.gameObject.activeSelf, "offered after five misses");
+            SaveShot("27-extra-well-offer");
+
+            // Taking it (the stub ad completes at once) adds one well to this level's budget.
+            int before = game.Layout.Remaining(WellKind.Attractor);
+            offer.GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            yield return null;
+            Assert.IsTrue(game.UsedExtraWell);
+            Assert.AreEqual(1, game.Layout.BonusWells);
+            Assert.AreEqual(before + 1, game.Layout.Remaining(WellKind.Attractor));
+            Assert.IsFalse(offer.gameObject.activeSelf, "taken: no longer offered");
+
+            // A win with it is worth one star, however few wells.
+            game.Restart();
+            PlaceTheSolution(game);
+            yield return FlyToTheResult(game);
+            Assert.AreEqual(1, game.LastResult.Stars);
+            Assert.IsTrue(game.LastResult.UsedExtraWell);
+            Assert.IsFalse(game.LastResult.UnderPar);
+        }
+
+        [UnityTest]
+        public IEnumerator TheLevel1Lesson_PlaysByItself_ThenStopsForGood()
+        {
+            GameManager game = Game();
+            AppFlow flow = Flow(game);
+            flow.Save.Data.TutorialSeen = false;
+            flow.Play();
+            Assert.IsTrue(game.DemoActive, "a new player is shown the lesson on level 1");
+
+            // The ghost finger carries a well across, the line bends through the gate, then it starts again.
+            bool sawWell = false, sawWin = false, sawEmptyAgain = false;
+            double deadline = EditorApplication.timeSinceStartup + TutorialDemo.CycleSeconds * 2.4;
+            while (EditorApplication.timeSinceStartup < deadline)
+            {
+                yield return null;
+                if (game.Layout.Count > 0)
+                {
+                    sawWell = true;
+                    sawWin |= game.Trajectory.Outcome == FlightOutcome.Won;
+                }
+                else if (sawWell)
+                {
+                    sawEmptyAgain = true;
+                }
+                if (sawWell && sawWin && sawEmptyAgain)
+                {
+                    break;
+                }
+            }
+            Assert.IsTrue(sawWell, "the demonstration puts a well on the field");
+            Assert.IsTrue(sawWin, "and the line it makes goes through the gate and into the goal");
+            Assert.IsTrue(sawEmptyAgain, "and it starts again");
+            Assert.IsTrue(game.DemoActive);
+            SaveShot("28-lesson");
+
+            // Launching ends it. (A finger on the field ends it too; that path reads Input and is device-checked.)
+            game.Launch();
+            Assert.IsFalse(game.DemoActive);
         }
 
         private static void SaveShot(string name)

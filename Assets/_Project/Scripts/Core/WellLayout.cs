@@ -71,9 +71,16 @@ namespace GravityWells.Core
             }
         }
 
+        // Wells granted beyond the level's budget (the rewarded Extra Well). They last for the level, through
+        // Undo and Restart, and are gone when the next level begins.
+        public int BonusWells { get; private set; }
+
+        public void GrantBonusWell() => BonusWells++;
+
         public void Begin(LevelDefinition level)
         {
             _level = level;
+            BonusWells = 0;
             Clear();
         }
 
@@ -91,7 +98,7 @@ namespace GravityWells.Core
         // count is the total left; repulsors are also capped by the level's repulsor budget.
         public int Remaining(WellKind kind)
         {
-            int left = _level.WellBudget - Count;
+            int left = _level.WellBudget + BonusWells - Count;
             if (kind == WellKind.Repulsor)
             {
                 left = Mathf.Min(left, _level.RepulsorBudget - RepulsorsPlaced);

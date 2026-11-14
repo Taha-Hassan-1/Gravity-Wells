@@ -9,10 +9,12 @@ namespace GravityWells.Tests
     // "the same" here means the same bits, not "close".
     public class DeterminismTests
     {
-        // The Editor's value of DeterminismCheck.CombinedHash, recorded 2026-11-14 before any phone had run it.
-        // If a deliberate change to the generator or the simulator moves it, record the new value here AND re-run
-        // the check on a device (docs/TEST_CASES.md, DET-05).
-        private const int ExpectedEditorHash = -159271037;
+        // The Editor's value of DeterminismCheck.CombinedHash. If a deliberate change to the generator or the
+        // simulator moves it, record the new value here AND re-run the check on a device (docs/TEST_CASES.md, DET-05).
+        // History: -159271037 (Phase 2, recorded before any phone had run it); 69262906 from Phase 4, when level 35
+        // (the one that introduces repulsors) was made a lighter level that always contains one. Only level 35 of
+        // levels 1-100 changed. No phone has recorded either value yet, so nothing on a device was invalidated.
+        private const int ExpectedEditorHash = 69262906;
 
         private static int Bits(float value) => BitConverter.SingleToInt32Bits(value);
 

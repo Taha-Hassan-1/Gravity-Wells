@@ -26,6 +26,10 @@ namespace GravityWells.Game
         public FeelController Feel;
         public HapticService Haptics;
         public AudioService Audio;
+        public EconomyService Economy;
+        public AdFlow AdFlow;
+        public SaveService Save;
+        public System.Action ShowMainMenu;   // set after the app flow exists: the pause card and the result card lead there
     }
 
     // Runs one level at a time: the plan (wells being dragged, the preview line following them), the launch
@@ -46,6 +50,7 @@ namespace GravityWells.Game
             WinHold,    // the win sequence plays out on the finished flight
             Result,     // the result card is up
             Paused,
+            Menu,       // the player is on a menu screen; no level is being played
         }
 
         private const float FailHoldSeconds = 0.7f;
@@ -67,6 +72,25 @@ namespace GravityWells.Game
         private int _failedLaunches;
         private int _wellsAtLaunch;
         private int _litShown = -1;
+        private IGameMode _mode;
+        private bool _usedHint;
+        private bool _usedExtraWell;
+        private bool _extraWellOffered;
+
+        // The wordless level-1 lesson: a ghost finger drags a well across until the player touches the screen.
+        private TutorialDemo _demo;
+        private bool _demoActive;
+        private bool _demoWellOnField;
+        private bool _demoStoppedByPlayer;
+        private float _demoClock;
+        private PendingHint _pendingHint;
+
+        private struct PendingHint
+        {
+            public bool Valid;
+            public int Index;
+            public Vector2 Position;
+        }
 
         public GameState State => _state;
         public LevelDefinition Level => _level;
@@ -82,12 +106,20 @@ namespace GravityWells.Game
         public void Init(GameDependencies dependencies)
         {
             _d = dependencies;
+            _mode = _d.Mode;
+            _state = GameState.Menu;
             _drag = new WellDragController(
                 _d.Camera, _layout, _d.Hud, _d.Haptics, OnLayoutChanged,
-                () => _d.Ui.ShowToast("No wells left. Take one back first."),
+                () => _d.Ui.ShowToast(Strings.Game.NoWellsLeft),
                 _d.Feel.WellPickedUp, _d.Feel.WellDropped);
             _d.Hud.SecretTapped = RunDeterminismCheck;
+            _d.Hud.ExtraWellPressed = OnExtraWellPressed;
         }
+
+        public IGameMode Mode => _mode;
+        public bool UsedHint => _usedHint;
+        public bool UsedExtraWell => _usedExtraWell;
+        public bool DemoActive => _demoActive;
 
         // The device half of the determinism check: the same number the Editor prints (GravityWells > Tuning >
         // Print Determinism Hash). If they differ, stop: floats are not behaving the same on this device.
@@ -129,7 +161,14 @@ namespace GravityWells.Game
 
         public void StartCampaign()
         {
-            Load(_d.Mode.Begin());
+            StartMode(_d.Mode);
+        }
+
+        // Begins a session of a mode (the campaign from where the player stopped, or today's daily).
+        public void StartMode(IGameMode mode)
+        {
+            _mode = mode;
+            Load(_mode.Begin());
         }
 
         public void StartLevel(LevelDefinition level)
@@ -137,9 +176,24 @@ namespace GravityWells.Game
             Load(level);
         }
 
-        public void NextLevel() => Load(_d.Mode.Next());
+        public void NextLevel() => Load(_mode.Next());
 
-        public void ReplayLevel() => Load(_d.Mode.Replay());
+        public void ReplayLevel() => Load(_mode.Replay());
+
+        // The player went to a menu: whatever was in progress is dropped (a level never resumes), and nothing runs.
+        public void LeaveLevel()
+        {
+            Time.timeScale = 1f;
+            StopDemo(clearWell: true);
+            if (_layout.IsDragging)
+            {
+                _layout.CancelDrag();
+            }
+            _drag?.SetEnabled(false);
+            _d.Audio.StopWhoosh();
+            _d.Hud.HideHand();
+            _state = GameState.Menu;
+        }
 
         private void Load(LevelDefinition level)
         {
@@ -148,19 +202,114 @@ namespace GravityWells.Game
             _layout.Begin(level);
             _launches = 0;
             _failedLaunches = 0;
+            _usedHint = false;
+            _usedExtraWell = false;
+            _extraWellOffered = false;
+            _pendingHint = default;
             _litShown = -1;
             _ease.Cancel();
+            _d.Hud.SetExtraWellOffer(false);
+            _d.Hud.HideHand();
             _d.Field.ShowLevel(level);
             _d.Gates.ShowLevel(level);
             _d.Asteroids.ShowLevel(level);
             _d.Ship.PlaceOnPad(level);
             _d.Hint.Hide();
             _d.Path.Visible = true;
-            _d.Hud.ShowLevel(_d.Mode.LevelNumber);
+            _d.Hud.ShowLevel(_mode.LevelNumber, _mode.Key == "daily");
             _d.Ui.SwitchTo(_d.Hud);
             EnterPlanning();
             Refresh(celebrate: false, ease: false);
             _d.Feel.LevelLoaded(level, _trajectory);
+            BeginDemoIfNeeded();
+        }
+
+        // ---- the level-1 lesson ----
+
+        private void BeginDemoIfNeeded()
+        {
+            _demoActive = false;
+            _demoWellOnField = false;
+            _demoStoppedByPlayer = false;
+            _demo = null;
+
+            bool wanted = _mode.Key == "campaign" && _level.Level == 1 && _d.Save != null && !_d.Save.Data.TutorialSeen;
+            if (wanted && TutorialDemo.TryCreate(_level, out _demo))
+            {
+                _demoActive = true;
+                _demoClock = 0f;
+            }
+        }
+
+        private void TickDemo(float dt)
+        {
+            // Any touch on the field or the tray ends the lesson; the touch itself is then the player's own.
+            if (TapStarted() && !PointerOverUi())
+            {
+                StopDemo(clearWell: true);
+                _demoStoppedByPlayer = true;
+                return;
+            }
+
+            _demoClock += dt;
+            Vector2 trayWorld = ScreenToWorld(_d.Hud.TrayScreenCenter());
+            DemoFrame frame = _demo.Sample(_demoClock, trayWorld);
+            _d.Hud.ShowHand(_d.Camera.WorldToScreenPoint(frame.HandPosition), frame.HandAlpha, frame.Carrying);
+
+            // The demo moves the well through the same calls a finger would, so the line bends live.
+            if (frame.WellOnField && !_demoWellOnField && _layout.Count == 0)
+            {
+                if (_layout.BeginDragNew(WellKind.Attractor, frame.HandPosition))
+                {
+                    _demoWellOnField = true;
+                }
+            }
+            if (_demoWellOnField && frame.Carrying && _layout.IsDragging)
+            {
+                _layout.DragTo(frame.HandPosition, removeZone: false);
+                OnLayoutChanged(false);
+            }
+            else if (_demoWellOnField && !frame.Carrying && _layout.IsDragging)
+            {
+                _layout.EndDrag();
+                OnLayoutChanged(true);
+            }
+            else if (_demoWellOnField && !frame.WellOnField)
+            {
+                ClearDemoWell();
+            }
+        }
+
+        private void ClearDemoWell()
+        {
+            if (_layout.IsDragging)
+            {
+                _layout.CancelDrag();
+            }
+            _layout.Clear();
+            _demoWellOnField = false;
+            Refresh(celebrate: false, ease: true);
+            BeginEase();
+        }
+
+        private void StopDemo(bool clearWell)
+        {
+            if (!_demoActive)
+            {
+                return;
+            }
+            _demoActive = false;
+            _d.Hud.HideHand();
+            if (clearWell && _demoWellOnField)
+            {
+                ClearDemoWell();
+            }
+        }
+
+        private Vector2 ScreenToWorld(Vector2 screen)
+        {
+            Vector3 p = _d.Camera.ScreenToWorldPoint(new Vector3(screen.x, screen.y, 0f));
+            return new Vector2(p.x, p.y);
         }
 
         // ---- the plan ----
@@ -253,6 +402,13 @@ namespace GravityWells.Game
             if (settled)
             {
                 BeginEase();
+
+                // The player's own first drop ends the lesson for good: they have shown they know how.
+                if (_demoStoppedByPlayer && _layout.Count > 0 && _d.Save != null && !_d.Save.Data.TutorialSeen)
+                {
+                    _d.Save.Data.TutorialSeen = true;
+                    _d.Save.Save();
+                }
             }
         }
 
@@ -269,6 +425,10 @@ namespace GravityWells.Game
             _d.Hud.SetTray(
                 _layout.Remaining(WellKind.Attractor), _layout.Remaining(WellKind.Repulsor), _level.RepulsorBudget > 0);
             _d.Hud.SetUndoAvailable(_layout.CanUndo && _state == GameState.Planning);
+
+            // What a hint would cost right now: coins if there are enough, otherwise a rewarded ad.
+            _d.Hud.SetHintPrice(_d.Economy != null && _d.Economy.CanAfford(Economy.HintCost));
+            _d.Hud.SetExtraWellOffer(_extraWellOffered && !_usedExtraWell && _state == GameState.Planning);
         }
 
         public void Undo()
@@ -299,21 +459,70 @@ namespace GravityWells.Game
                 return;
             }
 
+            StopDemo(clearWell: true);
             for (int i = 0; i < _layout.Count; i++)
             {
                 _hintWells[i] = _layout[i];
             }
             var rng = new System.Random(unchecked(_level.Seed + _launches * 977 + _layout.Count));
-            if (HintPlanner.TryPlan(_level, _hintWells, _layout.Count, rng, _hintScratch, out int index, out Vector2 position))
+            if (!HintPlanner.TryPlan(
+                    _level, _hintWells, _layout.Count, rng, _hintScratch, out int index, out Vector2 position, _layout.BonusWells))
             {
-                bool moving = index < _layout.Count;
-                _d.Hint.Show(position, moving ? _layout[index].Kind : WellKind.Attractor, moving, moving ? _layout[index].Position : default);
-            }
-            else
-            {
+                // Nothing to show means nothing to pay for.
                 _d.Hint.Hide();
-                _d.Ui.ShowToast("No better move found from here.");
+                _d.Ui.ShowToast(Strings.Game.NoBetterMove);
+                return;
             }
+
+            _pendingHint = new PendingHint { Valid = true, Index = index, Position = position };
+            if (_d.Economy != null && _d.Economy.TrySpend(Economy.HintCost))
+            {
+                RevealHint();
+            }
+            else if (_d.AdFlow != null)
+            {
+                // Short of coins: the same hint for a whole rewarded ad.
+                _d.AdFlow.WatchRewarded(RevealHint, Strings.Game.HintNeedsAd);
+            }
+        }
+
+        private void RevealHint()
+        {
+            if (!_pendingHint.Valid || _state != GameState.Planning)
+            {
+                return;
+            }
+            _usedHint = true;
+            bool moving = _pendingHint.Index < _layout.Count;
+            _d.Hint.Show(
+                _pendingHint.Position, moving ? _layout[_pendingHint.Index].Kind : WellKind.Attractor, moving,
+                moving ? _layout[_pendingHint.Index].Position : default);
+            _pendingHint = default;
+            RefreshHud();
+        }
+
+        // ---- the rewarded Extra Well ----
+
+        // Offered after a run of failed launches: watch an ad for one more attractor on this level. A win that
+        // used it earns one star (CampaignMode / Scoring).
+        private void OnExtraWellPressed()
+        {
+            if (_state != GameState.Planning || _usedExtraWell || _d.AdFlow == null)
+            {
+                return;
+            }
+            _d.AdFlow.WatchRewarded(GrantExtraWell, Strings.Game.ExtraWellNeedsAd);
+        }
+
+        private void GrantExtraWell()
+        {
+            if (_usedExtraWell)
+            {
+                return;
+            }
+            _usedExtraWell = true;
+            _layout.GrantBonusWell();
+            RefreshHud();
         }
 
         // ---- the launch and the flight ----
@@ -325,6 +534,7 @@ namespace GravityWells.Game
                 return;
             }
 
+            StopDemo(clearWell: false);
             _launches++;
             _wellsAtLaunch = _layout.Count;
             _d.Hint.Hide();
@@ -353,7 +563,8 @@ namespace GravityWells.Game
         {
             _d.Audio.Tick(Time.unscaledDeltaTime);
             _d.Hud.Tick(Time.unscaledDeltaTime);
-            if (_level == null)
+            _d.AdFlow?.Tick(Time.unscaledDeltaTime);
+            if (_level == null || _state == GameState.Menu)
             {
                 return;
             }
@@ -365,6 +576,15 @@ namespace GravityWells.Game
             switch (_state)
             {
                 case GameState.Planning:
+                    // While an ad is up the board is held still, and a finger belongs to the overlay.
+                    if (_d.AdFlow != null && (_d.AdFlow.Busy || _d.Ui.AdOverlayVisible))
+                    {
+                        break;
+                    }
+                    if (_demoActive)
+                    {
+                        TickDemo(dt);
+                    }
                     _drag.Tick();
                     break;
                 case GameState.Charging:
@@ -432,12 +652,16 @@ namespace GravityWells.Game
                 _state = GameState.FailHold;
                 _holdTimer = FailHoldSeconds;
                 _d.Feel.Failed(_trajectory, _playback.GatesLitMaskSoFar(), _failedLaunches);
+                if (_failedLaunches >= GameConfig.FailsBeforeExtraWellOffer)
+                {
+                    _extraWellOffered = true; // shown again whenever planning resumes, until it is taken
+                }
             }
         }
 
         private void ShowResult()
         {
-            LastResult = _d.Mode.OnWon(_wellsAtLaunch, _launches, usedExtraWell: false);
+            LastResult = _mode.OnWon(_wellsAtLaunch, _launches, _usedExtraWell, _usedHint);
             _d.Result.ShowResult(LastResult);
             _d.Ui.SwitchTo(_d.Result);
             _state = GameState.Result;
@@ -447,7 +671,7 @@ namespace GravityWells.Game
 
         public void Pause()
         {
-            if (_state == GameState.Paused || _state == GameState.Result || _level == null)
+            if (_state == GameState.Paused || _state == GameState.Result || _state == GameState.Menu || _level == null)
             {
                 return;
             }
@@ -494,6 +718,13 @@ namespace GravityWells.Game
         {
             Time.timeScale = 1f;
             ReplayLevel();
+        }
+
+        // The Menu button on the pause card and on the result card.
+        public void GoToMenu()
+        {
+            Time.timeScale = 1f;
+            _d.ShowMainMenu?.Invoke();
         }
 
         // ---- input helpers ----

@@ -70,7 +70,7 @@ namespace GravityWells.Tests
         }
 
         [Test]
-        public void ThePlan_FollowsTheCurve_ExceptForTheFirstThreeLevels()
+        public void ThePlan_FollowsTheCurve_ExceptForTheFirstThreeLevelsAndTheRepulsorIntroduction()
         {
             LevelPlan one = DifficultyCurve.PlanForLevel(1);
             Assert.AreEqual(1, one.Wells);
@@ -87,6 +87,10 @@ namespace GravityWells.Tests
 
             for (int level = 4; level <= 300; level++)
             {
+                if (level == GameConfig.RepulsorFirstLevel)
+                {
+                    continue; // the repulsor's introduction is a lighter, fixed level (GeneratorTests)
+                }
                 LevelPlan plan = DifficultyCurve.PlanForLevel(level);
                 Assert.AreEqual(DifficultyCurve.WellsForLevel(level), plan.Wells);
                 Assert.AreEqual(DifficultyCurve.GatesForLevel(level), plan.Gates);

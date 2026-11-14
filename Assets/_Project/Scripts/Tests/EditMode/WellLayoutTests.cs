@@ -54,6 +54,32 @@ namespace GravityWells.Tests
         }
 
         [Test]
+        public void AnExtraWell_AddsOneToTheBudget_ForThatLevelOnly()
+        {
+            WellLayout layout = Layout(par: 1);
+            for (int i = 0; i < 3; i++)
+            {
+                layout.Place(WellKind.Attractor, new Vector2(0.1f + 0.2f * i, 1f));
+            }
+            Assert.IsFalse(layout.CanAdd(WellKind.Attractor));
+
+            layout.GrantBonusWell();
+            Assert.AreEqual(1, layout.BonusWells);
+            Assert.IsTrue(layout.CanAdd(WellKind.Attractor));
+            Assert.AreEqual(1, layout.Remaining(WellKind.Attractor));
+            Assert.GreaterOrEqual(layout.Place(WellKind.Attractor, new Vector2(0.8f, 1.2f)), 0);
+            Assert.IsFalse(layout.CanAdd(WellKind.Attractor));
+
+            layout.Clear();
+            Assert.AreEqual(1, layout.BonusWells, "Restart keeps what the player earned for this level");
+            Assert.AreEqual(4, layout.Remaining(WellKind.Attractor));
+
+            layout.Begin(Level(par: 1));
+            Assert.AreEqual(0, layout.BonusWells, "a new level starts without it");
+            Assert.AreEqual(3, layout.Remaining(WellKind.Attractor));
+        }
+
+        [Test]
         public void WithNoRepulsorBudget_NoRepulsorCanBePlaced()
         {
             Assert.AreEqual(0, Layout(par: 3, repulsorBudget: 0).Remaining(WellKind.Repulsor));

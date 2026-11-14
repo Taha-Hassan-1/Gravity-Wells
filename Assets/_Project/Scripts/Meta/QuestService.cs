@@ -106,21 +106,6 @@ namespace GravityWells.Meta
             return Finish(coins, completed);
         }
 
-        public QuestUpdate OnPowerUpUsed()
-        {
-            EnsureToday();
-            int coins = 0;
-            int completed = 0;
-            for (int i = 0; i < Today.Length; i++)
-            {
-                if (Today[i].Kind == QuestKind.UsePowerUp)
-                {
-                    Advance(i, 1, ref coins, ref completed);
-                }
-            }
-            return Finish(coins, completed);
-        }
-
         private void Advance(int index, int gain, ref int coins, ref int completed)
         {
             if (gain <= 0 || IsDone(index))

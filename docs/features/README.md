@@ -19,3 +19,6 @@ A feature doc and its test-case rows are written in the same change as the featu
 | [08](08-feel.md) | Feel: line, wells, launch, win and miss | Core, Game | 3 |
 | [09](09-audio.md) | Audio: the sounds and the music | Core, Services | 3 |
 | [10](10-palette-pass.md) | Palette pass and the sky | Game | 3 |
+| [11](11-menu-and-screens.md) | Menu, screens and navigation | UI, Game | 4 |
+| [12](12-coins-quests-and-daily.md) | Coins, quests, hints, extra well, the daily | Core, Meta, Game | 4 |
+| [13](13-level1-lesson.md) | The level-1 lesson | Core, Game, UI | 4 |

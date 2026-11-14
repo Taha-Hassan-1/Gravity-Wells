@@ -30,7 +30,7 @@ namespace GravityWells.Core
         // wells is used as working space and left as it was; scratch is overwritten.
         public static bool TryPlan(
             LevelDefinition level, Well[] wells, int wellCount, System.Random rng, Trajectory scratch,
-            out int wellIndex, out Vector2 position)
+            out int wellIndex, out Vector2 position, int bonusWells = 0)
         {
             wellIndex = -1;
             position = default;
@@ -57,7 +57,7 @@ namespace GravityWells.Core
                 wells[w] = original;
             }
 
-            if (wellCount < level.WellBudget && wellCount < wells.Length)
+            if (wellCount < level.WellBudget + bonusWells && wellCount < wells.Length)
             {
                 Well slot = wells[wellCount];
                 SweepField(

@@ -88,7 +88,85 @@ namespace GravityWells.UI
                 Content, "Launch", "Launch", new Vector2(560f, 128f), style, () => onLaunch(), primary: true, fontSize: 56f,
                 icon: UIIcons.Get("play"));
             UIFactory.Place((RectTransform)_launch.transform, new Vector2(0.5f, 0f), new Vector2(0f, 48f), new Vector2(560f, 128f));
+
+            // What a hint costs, on the corner of its button: the coins, or "AD" when there are not enough.
+            Image chip = UIFactory.CreateBadge(Content, "HintPrice", new Vector2(112f, 50f), style, out _hintPrice);
+            UIFactory.Place(chip.rectTransform, new Vector2(1f, 1f), new Vector2(-UITokens.SpaceM + 6f, -UITokens.SpaceM - RoundButton + 26f), new Vector2(112f, 50f));
+
+            // Offered after a run of misses: one more well for a rewarded ad.
+            _extraWell = UIFactory.CreateButton(
+                Content, "ExtraWell", Strings.Game.ExtraWell, new Vector2(350f, 108f), style, () => ExtraWellPressed?.Invoke(),
+                fontSize: 40f, icon: UIIcons.Get("shop"));
+            UIFactory.Place((RectTransform)_extraWell.transform, new Vector2(0.5f, 0f), new Vector2(40f, 244f), new Vector2(350f, 108f));
+            Image adChip = UIFactory.CreateBadge(_extraWell.transform, "AdChip", new Vector2(76f, 40f), style, out TextMeshProUGUI adLabel);
+            adLabel.text = "AD";
+            UIFactory.Place(adChip.rectTransform, new Vector2(1f, 1f), new Vector2(10f, 14f), new Vector2(76f, 40f));
+            _extraWell.gameObject.SetActive(false);
+
+            // The ghost finger of the level-1 lesson, above everything else on the screen.
+            RectTransform hand = UIFactory.CreateRect(Root.transform, "TutorialHand");
+            UIFactory.Place(hand, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(HandSize, HandSize));
+            hand.pivot = new Vector2(0.5f, 0.5f);
+            _handRing = UIFactory.CreateIconImage(hand, "Ring", ShapeSprites.Ring, HandSize);
+            UIFactory.Stretch(_handRing.rectTransform);
+            _handDot = UIFactory.CreateIconImage(hand, "Dot", ShapeSprites.Disc, HandSize * 0.5f);
+            UIFactory.Place(_handDot.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(HandSize * 0.5f, HandSize * 0.5f));
+            _handDot.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            _handRing.raycastTarget = false;
+            _handDot.raycastTarget = false;
+            _hand = hand;
+            _hand.gameObject.SetActive(false);
         }
+
+        private const float HandSize = 150f;
+        private readonly TextMeshProUGUI _hintPrice;
+        private readonly Button _extraWell;
+        private readonly RectTransform _hand;
+        private readonly Image _handRing;
+        private readonly Image _handDot;
+
+        // Set by GameManager: the Extra Well button was pressed.
+        public Action ExtraWellPressed { get; set; }
+
+        // "30" (coins) when a hint can be paid for, "AD" when it would take a rewarded ad.
+        public void SetHintPrice(bool canAfford)
+        {
+            _hintPrice.text = canAfford ? Economy.HintCost.ToString() : "AD";
+        }
+
+        public void SetExtraWellOffer(bool visible)
+        {
+            if (_extraWell.gameObject.activeSelf != visible)
+            {
+                _extraWell.gameObject.SetActive(visible);
+            }
+        }
+
+        // Where the attractor slot is on the screen, for the lesson's finger to start from.
+        public Vector2 TrayScreenCenter()
+        {
+            return RectTransformUtility.WorldToScreenPoint(null, _attractorSlot.TransformPoint(_attractorSlot.rect.center));
+        }
+
+        // The lesson's ghost finger, at a point on the screen. pressed = it is holding a well (it draws smaller, as a
+        // finger does when it presses).
+        public void ShowHand(Vector2 screenPoint, float alpha, bool pressed)
+        {
+            if (alpha <= 0.001f)
+            {
+                _hand.gameObject.SetActive(false);
+                return;
+            }
+            _hand.gameObject.SetActive(true);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)Root.transform, screenPoint, null, out Vector2 local);
+            _hand.anchoredPosition = local;
+            _hand.localScale = Vector3.one * (pressed ? 0.8f : 1f);
+            Color ink = _style.Palette.Text;
+            _handRing.color = new Color(ink.r, ink.g, ink.b, 0.55f * alpha);
+            _handDot.color = new Color(ink.r, ink.g, ink.b, 0.35f * alpha);
+        }
+
+        public void HideHand() => _hand.gameObject.SetActive(false);
 
         public RectTransform AttractorSlot => _attractorSlot;
 
@@ -135,7 +213,7 @@ namespace GravityWells.UI
 
         // Level title and the counters ----------------------------------------------------
 
-        public void ShowLevel(int level) => _level.text = "Level " + level;
+        public void ShowLevel(int level, bool daily) => _level.text = daily ? "Daily" : Strings.Game.Level(level);
 
         public void SetGates(int lit, int total)
         {

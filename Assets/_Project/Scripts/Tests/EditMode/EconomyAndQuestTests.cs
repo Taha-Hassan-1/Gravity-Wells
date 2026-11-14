@@ -57,13 +57,9 @@ namespace GravityWells.Tests
         }
 
         [Test]
-        public void EveryPowerUp_HasAPositiveCostAndAName()
+        public void AHint_CostsThirtyCoins()
         {
-            foreach (PowerUpKind kind in Enum.GetValues(typeof(PowerUpKind)))
-            {
-                Assert.Greater(Economy.Cost(kind), 0, kind.ToString());
-                Assert.IsNotEmpty(Economy.Name(kind), kind.ToString());
-            }
+            Assert.AreEqual(30, Economy.HintCost);
         }
 
         // ---- the balance ----
@@ -143,7 +139,7 @@ namespace GravityWells.Tests
         }
 
         [Test]
-        public void EveryDay_HasThreeDistinctSaneQuests_NeverOpposites()
+        public void EveryDay_HasThreeDistinctSaneQuests()
         {
             for (int day = 1; day <= 800; day++)
             {
@@ -156,29 +152,27 @@ namespace GravityWells.Tests
                     Assert.Greater(quest.Reward, 0);
                     Assert.IsNotEmpty(quest.Describe());
                 }
-                bool both = quests.Any(q => q.Kind == QuestKind.UsePowerUp)
-                    && quests.Any(q => q.Kind == QuestKind.SolveWithoutPowerUp);
-                Assert.IsFalse(both, "day " + day);
             }
         }
 
         [Test]
         public void ProgressFor_ReflectsWhatHappenedInTheLevel()
         {
-            var perfectClean = new LevelOutcome(3, 8, false, usedUndo: false, usedPowerUp: false);
-            var messy = new LevelOutcome(1, 20, false, usedUndo: true, usedPowerUp: true);
-            var daily = new LevelOutcome(2, 10, true, false, false);
+            var brilliant = new LevelOutcome(3, true, 1, false, usedHint: false);
+            var messy = new LevelOutcome(1, false, 6, false, usedHint: true);
+            var daily = new LevelOutcome(2, false, 2, true, false);
 
             Assert.AreEqual(1, QuestBoard.ProgressFor(QuestKind.SolveLevels, messy));
-            Assert.AreEqual(1, QuestBoard.ProgressFor(QuestKind.EarnThreeStars, perfectClean));
-            Assert.AreEqual(0, QuestBoard.ProgressFor(QuestKind.EarnThreeStars, messy));
-            Assert.AreEqual(1, QuestBoard.ProgressFor(QuestKind.SolveWithoutUndo, perfectClean));
-            Assert.AreEqual(0, QuestBoard.ProgressFor(QuestKind.SolveWithoutUndo, messy));
-            Assert.AreEqual(0, QuestBoard.ProgressFor(QuestKind.SolveWithoutPowerUp, messy));
-            Assert.AreEqual(20, QuestBoard.ProgressFor(QuestKind.MakeMoves, messy));
+            Assert.AreEqual(3, QuestBoard.ProgressFor(QuestKind.EarnStars, brilliant));
+            Assert.AreEqual(1, QuestBoard.ProgressFor(QuestKind.EarnStars, messy));
+            Assert.AreEqual(1, QuestBoard.ProgressFor(QuestKind.SolveUnderPar, brilliant));
+            Assert.AreEqual(0, QuestBoard.ProgressFor(QuestKind.SolveUnderPar, messy));
+            Assert.AreEqual(1, QuestBoard.ProgressFor(QuestKind.SolveFirstTry, brilliant));
+            Assert.AreEqual(0, QuestBoard.ProgressFor(QuestKind.SolveFirstTry, messy));
+            Assert.AreEqual(1, QuestBoard.ProgressFor(QuestKind.SolveWithoutHint, brilliant));
+            Assert.AreEqual(0, QuestBoard.ProgressFor(QuestKind.SolveWithoutHint, messy));
             Assert.AreEqual(1, QuestBoard.ProgressFor(QuestKind.PlayDaily, daily));
-            Assert.AreEqual(0, QuestBoard.ProgressFor(QuestKind.PlayDaily, perfectClean));
-            Assert.AreEqual(0, QuestBoard.ProgressFor(QuestKind.UsePowerUp, messy), "advances on use, not on level end");
+            Assert.AreEqual(0, QuestBoard.ProgressFor(QuestKind.PlayDaily, brilliant));
         }
 
         [Test]
@@ -203,8 +197,8 @@ namespace GravityWells.Tests
             }
         }
 
-        // Stars 1, no moves, undo and a power-up used: advances only "solve N levels".
-        private static readonly LevelOutcome SolveOnly = new LevelOutcome(1, 0, false, usedUndo: true, usedPowerUp: true);
+        // One star, over par, four launches, a hint taken: advances only "solve N levels" (and stars, by one).
+        private static readonly LevelOutcome SolveOnly = new LevelOutcome(1, false, 4, false, usedHint: true);
 
         [Test]
         public void SolvingLevels_PaysTheRewardExactlyWhenTheTargetIsReached()
@@ -247,34 +241,17 @@ namespace GravityWells.Tests
         }
 
         [Test]
-        public void UsingAPowerUp_AdvancesOnlyThatQuest()
-        {
-            int use = Array.FindIndex(_quests.Today, q => q.Kind == QuestKind.UsePowerUp);
-            if (use < 0)
-            {
-                Assert.Pass("today's board has no power-up quest; covered by the day sweep below");
-            }
-
-            for (int i = 0; i < _quests.Today[use].Target; i++)
-            {
-                _quests.OnPowerUpUsed();
-            }
-
-            Assert.IsTrue(_quests.IsDone(use));
-        }
-
-        [Test]
         public void FinishingEveryQuest_PaysTheBonusExactlyOnce()
         {
             // Walk forward to a day that has no power-up quest, so one clean level pattern can finish all three.
-            for (int step = 0; step < 400 && !BoardIsFinishableByLevels(_quests.Today); step++)
+            for (int step = 0; step < 1 && !BoardIsFinishableByLevels(_quests.Today); step++)
             {
                 _now = _now.AddDays(1);
                 _quests.EnsureToday();
             }
             Assert.IsTrue(BoardIsFinishableByLevels(_quests.Today));
 
-            var clean = new LevelOutcome(3, 60, true, usedUndo: false, usedPowerUp: false);
+            var clean = new LevelOutcome(3, true, 1, true, false);
             int bonusCount = 0;
             for (int i = 0; i < 60 && _quests.DoneCount < 3; i++)
             {
@@ -297,7 +274,7 @@ namespace GravityWells.Tests
         [Test]
         public void NewDay_ResetsProgressAndBonus()
         {
-            _quests.OnLevelSolved(new LevelOutcome(3, 20, true, false, false));
+            _quests.OnLevelSolved(new LevelOutcome(3, true, 1, true, false));
             Assert.Greater(Enumerable.Range(0, 3).Sum(i => _quests.Progress(i)), 0);
 
             _now = _now.AddDays(1);
@@ -313,7 +290,7 @@ namespace GravityWells.Tests
         [Test]
         public void SameDay_DoesNotResetProgress()
         {
-            _quests.OnLevelSolved(new LevelOutcome(3, 20, true, false, false));
+            _quests.OnLevelSolved(new LevelOutcome(3, true, 1, true, false));
             int before = Enumerable.Range(0, 3).Sum(i => _quests.Progress(i));
 
             _quests.EnsureToday();
@@ -324,7 +301,7 @@ namespace GravityWells.Tests
         [Test]
         public void ProgressSurvivesARestart_WithinTheSameDay()
         {
-            _quests.OnLevelSolved(new LevelOutcome(3, 20, true, false, false));
+            _quests.OnLevelSolved(new LevelOutcome(3, true, 1, true, false));
             int before = Enumerable.Range(0, 3).Sum(i => _quests.Progress(i));
 
             var reloaded = new QuestService(new SaveService(_dir), new EconomyService(new SaveService(_dir)), () => _now);
@@ -363,7 +340,7 @@ namespace GravityWells.Tests
 
         private static bool BoardIsFinishableByLevels(QuestDef[] board)
         {
-            return board.All(q => q.Kind != QuestKind.UsePowerUp);
+            return board.Length == QuestBoard.QuestsPerDay;
         }
     }
 }

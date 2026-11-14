@@ -25,17 +25,6 @@ namespace GravityWells.UI
             return sprite;
         }
 
-        public static Sprite ForPowerUp(PowerUpKind kind)
-        {
-            switch (kind)
-            {
-                case PowerUpKind.Pin: return Get("pin");
-                case PowerUpKind.Guide: return Get("guide");
-                case PowerUpKind.Bridge: return Get("bridge");
-                default: return Get("hint");
-            }
-        }
-
         private static Sprite Draw(string name)
         {
             switch (name)
