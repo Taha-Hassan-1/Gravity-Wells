@@ -1,6 +1,6 @@
 # Gravity Wells — Test Cases
 
-Last executed: 2026-11-15 · Build: branch `Phase5-Services` · Unity 6000.3.15f1 · EditMode suite: 461 non-Play tests passing (run class by class with the Editor open); the 12 Play Mode smoke tests are NOT re-run this phase (see section 5).
+Last executed: 2026-11-15 · Build: branch `Phase5-Services` · Unity 6000.3.15f1 · EditMode suite 473/473 passing (461 run class by class, 12 Play Mode smoke tests with the Editor open and in the foreground).
 
 **How a case is verified** (the *Via* column):
 
@@ -169,7 +169,7 @@ Fixes found by looking at the renders: the Themes list's "High Contrast" ran int
 | ANA-02 | File sink rotates and stays capped; composite sink fans out; the exception reporter caps and de-duplicates | As specified | Auto `AnalyticsSinkTests` | ✅ |
 | ADS-02 | Interstitial only at "Next level" and only when the policy allows | As specified | Auto `AdPolicyTests`, `AdFlowTests`, `MonetizationControllerTests` | ✅ (policy); ⏳ through the real scene |
 | DBL-01 | "Double coins" on the result card pays the same coins again once per win, after a whole rewarded ad | Pays once | Play `GameFlowSmokeTests` | ⏳ not exercised yet (no test) |
-| SMK-05 | The 12 Play Mode smoke tests after the Phase 5 changes | Pass | Play | ⏳ **not run**: with the Editor open and not in the foreground Play Mode does not advance frames, so the long ones stall; 3 short ones pass. Needs a run with Unity focused or closed. |
+| SMK-05 | The 12 Play Mode smoke tests after the Phase 5 changes | Pass | Play | ✅ 12/12 with Unity in the foreground (frames do not advance when it is not) |
 | ADS-01 | Real AdMob ads on a phone | Test ad shows, reward pays | Device | ⏳ no phone, no Android build yet |
 
 ## Not yet verified on a device
