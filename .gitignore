@@ -1,0 +1,59 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+/.vs/
+/.gradle/
+ExportedObj/
+
+# IDE / generated project files
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Build outputs
+*.apk
+*.aab
+*.unitypackage
+*.app
+sysinfo.txt
+crashlytics-build.properties
+
+# Signing — never commit
+*.keystore
+*.jks
+keystore.properties
+
+# Test output
+TestResults.xml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local overrides (leading ** so it matches at any depth, not just repo root)
+**/.claude/settings.local.json
+
+# graphify local knowledge-graph tooling output (regenerable; .graphify_python has a
+# machine-specific absolute path)
+/graphify-out/
+
+# Android native build cache (NDK/CMake)
+.utmp/
+*.log

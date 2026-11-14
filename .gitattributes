@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.cs text diff=csharp
+*.asmdef text
+*.json text
+*.md text
+*.unity text
+*.asset text
+*.prefab text
+*.meta text

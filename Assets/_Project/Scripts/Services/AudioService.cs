@@ -1,0 +1,238 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using UnityEngine;
+using GravityWells.Core;
+
+namespace GravityWells.Services
+{
+    // Procedurally synthesized sounds — no imported audio assets, matching the
+    // project's near-zero-art-cost approach. AudioSource.pitch shifts the tick's
+    // perceived frequency per play rather than resynthesizing a clip each call.
+    public sealed class AudioService
+    {
+        private readonly AudioSource _source;
+        private readonly AudioClip _tickClip;
+        private readonly AudioClip _chordClip;
+        private readonly AudioClip _clickClip;
+
+        private const float MusicFadeSeconds = 1.2f;
+
+        private readonly AudioSource _musicSource;
+        private readonly Dictionary<MusicTrack, Task<float[]>> _musicTasks = new Dictionary<MusicTrack, Task<float[]>>();
+        private readonly Dictionary<MusicTrack, AudioClip> _musicClips = new Dictionary<MusicTrack, AudioClip>();
+        private MusicTrack _wanted = MusicTrack.None;
+        private MusicTrack _playing = MusicTrack.None;
+        private float _pressure;
+        private float _musicLevel;
+
+        public AudioService(AudioSource source)
+        {
+            _source = source;
+            _musicSource = source.gameObject.AddComponent<AudioSource>();
+            _musicSource.loop = true;
+            _musicSource.playOnAwake = false;
+            _musicSource.volume = 0f;
+            _tickClip = BuildTickClip();
+            _chordClip = BuildChordClip();
+            _clickClip = BuildClickClip();
+        }
+
+        public bool Enabled { get; set; } = true;
+
+        // The background music has its own switch; Enabled (the Sound toggle) silences everything.
+        public bool MusicEnabled { get; set; } = true;
+
+        // Asks for a track. Each loop is generated on a background thread the first time it is wanted and
+        // kept; the game never waits for it. Changing track fades the old one out first.
+        public void PlayMusic(MusicTrack track)
+        {
+            _wanted = track;
+            if (track != MusicTrack.None && !_musicClips.ContainsKey(track) && !_musicTasks.ContainsKey(track))
+            {
+                _musicTasks[track] = Task.Run(() => MusicLibrary.Generate(track));
+            }
+        }
+
+        public void StopMusic() => _wanted = MusicTrack.None;
+
+        // How tense the moment is, 0..1. The tense tracks play faster and louder as it rises.
+        public void SetMusicPressure(float pressure) => _pressure = Mathf.Clamp01(pressure);
+
+        // Call every frame: finishes any loop that has been generated, and fades and switches the music.
+        public void Tick(float unscaledDeltaTime)
+        {
+            CollectGeneratedMusic();
+
+            bool wantedReady = _wanted != MusicTrack.None && _musicClips.ContainsKey(_wanted);
+            bool audible = Enabled && MusicEnabled && wantedReady;
+
+            if (_playing != _wanted)
+            {
+                // Fade what is playing out, then switch.
+                _musicLevel = Mathf.MoveTowards(_musicLevel, 0f, unscaledDeltaTime / MusicFadeSeconds);
+                _musicSource.volume = _musicLevel;
+                if (_musicLevel > 0.001f && _musicSource.isPlaying)
+                {
+                    return;
+                }
+
+                _musicSource.Stop();
+                _musicLevel = 0f; // the next track always fades in from silence
+                _playing = MusicTrack.None;
+                if (audible)
+                {
+                    _musicSource.clip = _musicClips[_wanted];
+                    _musicSource.Play();
+                    _playing = _wanted;
+                }
+                return;
+            }
+
+            if (_playing == MusicTrack.None)
+            {
+                return;
+            }
+
+            float target = audible ? MusicLibrary.VolumeFor(_playing, _pressure) : 0f;
+            _musicLevel = Mathf.MoveTowards(_musicLevel, target, unscaledDeltaTime / MusicFadeSeconds);
+            _musicSource.volume = _musicLevel;
+            _musicSource.pitch = MusicLibrary.PitchFor(_playing, _pressure);
+
+            if (!audible && _musicLevel <= 0f && _musicSource.isPlaying)
+            {
+                _musicSource.Stop(); // sound or music was switched off; it restarts when they come back
+                _playing = MusicTrack.None;
+            }
+        }
+
+        private void CollectGeneratedMusic()
+        {
+            if (_musicTasks.Count == 0)
+            {
+                return;
+            }
+
+            List<MusicTrack> done = null;
+            foreach (KeyValuePair<MusicTrack, Task<float[]>> entry in _musicTasks)
+            {
+                if (!entry.Value.IsCompleted)
+                {
+                    continue;
+                }
+                (done ?? (done = new List<MusicTrack>())).Add(entry.Key);
+                if (!entry.Value.IsFaulted)
+                {
+                    float[] samples = entry.Value.Result;
+                    AudioClip clip = AudioClip.Create("Music" + entry.Key, samples.Length, 1, MusicLibrary.SampleRate, false);
+                    clip.SetData(samples, 0);
+                    _musicClips[entry.Key] = clip;
+                }
+                // A failed build just means that track has no music; nothing else depends on it.
+            }
+
+            if (done != null)
+            {
+                foreach (MusicTrack track in done)
+                {
+                    _musicTasks.Remove(track);
+                }
+            }
+        }
+
+        public void PlayTick(float pitch)
+        {
+            if (!Enabled)
+            {
+                return;
+            }
+            _source.pitch = pitch;
+            _source.PlayOneShot(_tickClip);
+        }
+
+        // A soft, low UI tap, deliberately quieter and duller than the board tick.
+        public void PlayClick()
+        {
+            if (!Enabled)
+            {
+                return;
+            }
+            _source.pitch = 1f;
+            _source.PlayOneShot(_clickClip, 0.45f);
+        }
+
+        public void PlayChord()
+        {
+            if (!Enabled)
+            {
+                return;
+            }
+            _source.pitch = 1f;
+            _source.PlayOneShot(_chordClip);
+        }
+
+        private static AudioClip BuildTickClip()
+        {
+            const int sampleRate = 44100;
+            const float duration = 0.06f;
+            const float frequency = 880f;
+            int sampleCount = Mathf.RoundToInt(sampleRate * duration);
+            var samples = new float[sampleCount];
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float envelope = 1f - (float)i / sampleCount; // linear decay
+                samples[i] = Mathf.Sin(2f * Mathf.PI * frequency * t) * envelope;
+            }
+
+            var clip = AudioClip.Create("Tick", sampleCount, 1, sampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        private static AudioClip BuildClickClip()
+        {
+            const int sampleRate = 44100;
+            const float duration = 0.035f;
+            const float frequency = 520f;
+            int sampleCount = Mathf.RoundToInt(sampleRate * duration);
+            var samples = new float[sampleCount];
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float envelope = Mathf.Pow(1f - (float)i / sampleCount, 3f);
+                samples[i] = Mathf.Sin(2f * Mathf.PI * frequency * t) * envelope;
+            }
+
+            var clip = AudioClip.Create("Click", sampleCount, 1, sampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        private static AudioClip BuildChordClip()
+        {
+            const int sampleRate = 44100;
+            const float duration = 0.8f;
+            float[] frequencies = { 261.63f, 329.63f, 392.00f }; // C4 E4 G4 major chord
+            int sampleCount = Mathf.RoundToInt(sampleRate * duration);
+            var samples = new float[sampleCount];
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float t = (float)i / sampleRate;
+                float envelope = Mathf.Exp(-3f * t);
+                float sum = 0f;
+                for (int f = 0; f < frequencies.Length; f++)
+                {
+                    sum += Mathf.Sin(2f * Mathf.PI * frequencies[f] * t);
+                }
+                samples[i] = (sum / frequencies.Length) * envelope;
+            }
+
+            var clip = AudioClip.Create("Chord", sampleCount, 1, sampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+    }
+}
