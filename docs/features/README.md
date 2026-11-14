@@ -23,3 +23,4 @@ A feature doc and its test-case rows are written in the same change as the featu
 | [12](12-coins-quests-and-daily.md) | Coins, quests, hints, extra well, the daily | Core, Meta, Game | 4 |
 | [13](13-level1-lesson.md) | The level-1 lesson | Core, Game, UI | 4 |
 | [14](14-services-and-analytics.md) | Services, ads and analytics | Services, Game, UI | 5 |
+| [15](15-release-build-and-soak.md) | Release build and soak test | Editor | 6 |

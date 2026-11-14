@@ -1,6 +1,6 @@
 # Gravity Wells — Test Cases
 
-Last executed: 2026-11-15 · Build: branch `Phase5-Services` · Unity 6000.3.15f1 · EditMode suite 473/473 passing (461 run class by class, 12 Play Mode smoke tests with the Editor open and in the foreground).
+Last executed: 2026-11-15 · Build: branch `Phase6-ReleaseBuild` · Unity 6000.3.15f1 · EditMode suite 473/473 passing (Phase 5 run; Phase 6 added no tests) · AAB 28.3 MB · soak 1,000 levels clean.
 
 **How a case is verified** (the *Via* column):
 
@@ -171,6 +171,17 @@ Fixes found by looking at the renders: the Themes list's "High Contrast" ran int
 | DBL-01 | "Double coins" on the result card pays the same coins again once per win, after a whole rewarded ad | Pays once | Play `GameFlowSmokeTests` | ⏳ not exercised yet (no test) |
 | SMK-05 | The 12 Play Mode smoke tests after the Phase 5 changes | Pass | Play | ✅ 12/12 with Unity in the foreground (frames do not advance when it is not) |
 | ADS-01 | Real AdMob ads on a phone | Test ad shows, reward pays | Device | ⏳ no phone, no Android build yet |
+
+## 6. Release build and soak (Phase 6)
+
+| ID | Case | Expected | Via | Result |
+|---|---|---|---|---|
+| BLD-01 | The Android bundle builds (IL2CPP, ARM64, API 25 / 36) | Succeeds | Live (Editor build) | ✅ 171 s |
+| BLD-02 | Bundle size | under 40 MB | Live | ✅ 28.3 MB |
+| SOK-01 | 100 consecutive levels through the real game | no crash | Live `SoakTest` | ✅ 0 failures, 0 errors |
+| SOK-02 | 1,000 levels through the real game with rendering on | no failure | Live `SoakTest` | ✅ 0 failures, 0 errors, 484 s |
+| BLD-03 | Cold start under 2 s; the APK installs and runs | Yes | Device | ⏳ no phone connected |
+| BLD-04 | Release signing | Play-ready | Owner | ⏳ debug-signed; owner's keystore variables |
 
 ## Not yet verified on a device
 
