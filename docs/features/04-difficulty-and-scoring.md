@@ -26,6 +26,8 @@ Four wells is the cap: past that a level is more of the same but slower. Difficu
 
 **All of these, and the physics constants in doc 01, are still the spec's starting guesses.** `LevelBatchTester` measures them and the owner agrees values before they are locked; see the proposal in the Phase 1 report and `docs/TEST_CASES.md`. Until then the tests pin the curve's shape, not its tuning.
 
+**Decision (owner, 2026-11-14): lock none of them now; decide after Phase 2**, when the board can be played and felt on a phone. Open questions for that review: whether to raise `MinForgiveness` (the 0.2 floor never triggers; the lowest band average is about 0.47), whether gate width should keep narrowing past level 151, and the 0.25 ms flight budget on a device.
+
 ## Code and tests
 
 `Core/DifficultyCurve.cs`, `Core/Scoring.cs`; `DifficultyCurveTests` (well, gate, width, goal and asteroid values at the boundary levels, monotonic growth, the fixed first three levels, buffer limits, stars).
