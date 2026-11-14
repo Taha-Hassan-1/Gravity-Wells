@@ -7,3 +7,4 @@
 *.asset text
 *.prefab text
 *.meta text
+graphify-out/graph.json merge=graphify
