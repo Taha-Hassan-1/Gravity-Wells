@@ -1,6 +1,6 @@
 # Gravity Wells — Test Cases
 
-Last executed: 2026-11-14 · Build: branch `main` (M0 setup) · Unity 6000.3.15f1 · EditMode suite 224/224 passing.
+Last executed: 2026-11-14 · Build: branch `Phase1-FlightCore` · Unity 6000.3.15f1 · EditMode suite 321/321 passing.
 
 **How a case is verified** (the *Via* column):
 
@@ -45,6 +45,40 @@ unity command run_tests --mode EditMode --timeout 150 --project-path "D:/Project
 | M0-18 | Debug APK builds | IL2CPP ARM64, min API 25, target 36, portrait, `VIBRATE` in the manifest | Editor build + `aapt2 dump badging` | ✅ 21.4 MB |
 | M0-19 | APK installs and starts on a phone | Installs, opens to an empty scene, no crash | Device | ⏳ |
 
+## 1. Flight core (Phase 1)
+
+Measured 2026-11-14 in the Editor (Mono). "Debug" and "Release" are the Editor's script compilation setting; the spec's budgets are for a phone.
+
+| ID | Case | Expected | Via | Result |
+|---|---|---|---|---|
+| FLT-01 | No wells | Straight line at constant speed for the whole flight | Auto `FlightSimulatorTests` | ✅ |
+| FLT-02 | One attractor / one repulsor beside the path | Path bends toward / away | Auto `FlightSimulatorTests` | ✅ |
+| FLT-03 | Mirrored setup | Mirrored trajectory | Auto `FlightSimulatorTests` | ✅ |
+| FLT-04 | Energy, path kept more than 0.1 from the well | Kinetic + softened potential drifts under 2% | Auto `FlightSimulatorTests` | ✅ |
+| FLT-05 | Gates | Lit from either side; not by a post touch or the post's extension; lit when the ship lands exactly on the gate line; lit at 10× launch speed; any order, stay lit | Auto `FlightSimulatorTests` | ✅ |
+| FLT-06 | Goal | Does nothing until every gate is lit; swept at 10× speed | Auto `FlightSimulatorTests` | ✅ |
+| FLT-07 | The five outcomes | One hand-built case each | Auto `FlightSimulatorTests` | ✅ |
+| FLT-08 | Allocation | Zero bytes in `Simulate` and in `HintPlanner.TryPlan` | Auto `FlightSimulatorTests`, `HintTests` | ✅ |
+| FLT-09 | Time for an 8 s flight, 4 wells, 4 asteroids, 5 gates (spec: under 0.25 ms) | Under 0.25 ms | Auto `FlightSimulatorTests` (timing) | 🔧 **Release 0.25–0.26 ms, Debug 0.35 ms: slightly over the spec in the Editor.** The test allows 20% (Release) or 2× (Debug) so noise does not fail it. Not confirmed on a phone; Phase 2 device check |
+| GEN-01 | 1,000 seeds over levels 1–300: solution wins, zero wells do not, each one-well-removed layout does not | All hold | Auto `GeneratorTests` | ✅ |
+| GEN-02 | Everything inside the field; well, gate and asteroid clearances; `Par` equals the plan | All hold | Auto `GeneratorTests` | ✅ |
+| GEN-03 | Levels 1–3 fixed by rule; repulsors only from 35 and never first | Hold | Auto `GeneratorTests` | ✅ |
+| GEN-04 | Gate-drop fallback | Under 1% of levels (measured 0.08% over 10,000); `Generate` never throws | Auto `GeneratorTests`, batch | ✅ |
+| GEN-05 | `Generate` average (spec: under 30 ms) | Under 30 ms | Auto `GeneratorTests` (timing) | ✅ Release 6.8–7.1 ms, Debug 10.4 ms (levels 1–300) |
+| DET-01 | Same `(seed, level)` twice | Bit-identical data | Auto `DeterminismTests` | ✅ |
+| DET-02 | Same layout simulated twice | Bit-identical buffer and hash | Auto `DeterminismTests` | ✅ |
+| DET-03 | Scan of the simulator and generator source | No `Sin`, `Cos`, `Atan2`, `Pow`, `Exp` | Auto `CoreRulesTests` | ✅ |
+| DET-04 | Core's use of Unity, and of Unity's random; who reads the stored solution | Only `Vector2`, `Mathf`; none; only the generator, forgiveness and the level | Auto `CoreRulesTests` | ✅ |
+| DET-05 | Combined trajectory hash of the campaign solutions, levels 1–100, in the Editor | Stable run to run | Auto `DeterminismTests` | ✅ `-159271037` (the number the Phase 2 device check compares against) |
+| SOL-01 | Solver on campaign levels 1–100 within 20,000 flights (spec: at least 95%) | 95%+ | Auto `SolverTests` | ✅ 100/100, 720 flights on average |
+| SOL-02 | Solver on 500 sampled levels from the batch (levels 1–250, 2 seeds each) | — | Batch | 98.6% (seven bands at 95%, none lower) |
+| HNT-01 | Hint from 1,000 random non-winning layouts | Never worse; a move found for almost all | Auto `HintTests` | ✅ 999 of 1,000 improved |
+| HNT-02 | Repeated hints from an empty field, levels 1–50, up to 12 hints (spec: 80%) | 40 of 50 | Auto `HintTests` | ✅ 42 of 50 (84%). Not won: 12 15 19 30 33 36 39 48 |
+| HNT-03 | Hint never lands on the stored solution | None | Auto `HintTests` | ✅ |
+| DIF-01 | Curve and scoring boundary values | As specified | Auto `DifficultyCurveTests` | ✅ |
+| DIF-02 | Path score | 0 only for a win; 1000 per unlit gate; crash +500 | Auto `DifficultyCurveTests` | ✅ |
+| DIF-03 | 10,000-level batch (`LevelBatchTester`) | 0 failures | Editor tool | ✅ 39.2 attempts per level on average, 0.08% gate drops, forgiveness 0.84 (levels 11–20) falling to about 0.48 (levels 170+) |
+
 ## Not yet verified on a device
 
-Everything. No phone was connected during M0.
+Everything. No phone was connected. In particular: whether a phone flies the same trajectory as the Editor (DET-05 on a device), and the speed of a flight under IL2CPP (FLT-09).
