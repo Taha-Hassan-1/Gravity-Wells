@@ -16,6 +16,9 @@ namespace GravityWells.UI
         private readonly Action _onNext;
         private readonly Action _onReplay;
         private readonly Action _onMenu;
+        private readonly Action _onDouble;
+        private readonly Button _double;
+        private readonly TMP_Text _doubleLabel;
         private readonly TextMeshProUGUI _title;
         private readonly TextMeshProUGUI _wells;
         private readonly TextMeshProUGUI _launches;
@@ -28,12 +31,13 @@ namespace GravityWells.UI
         private readonly Image[] _stars = new Image[3];
         private bool _mainIsMenu;
 
-        public LevelCompletePanel(UIRoot ui, UIStyle style, Action onNext, Action onReplay, Action onMenu)
+        public LevelCompletePanel(UIRoot ui, UIStyle style, Action onNext, Action onReplay, Action onMenu, Action onDouble)
         {
             _style = style;
             _onNext = onNext;
             _onReplay = onReplay;
             _onMenu = onMenu;
+            _onDouble = onDouble;
             BuildRoot(ui.CanvasTransform, "LevelComplete", ui, style, opaque: false);
 
             Image dim = UIFactory.CreateFlat(Root.transform, "Dim", new Color(0f, 0f, 0f, 0.45f));
@@ -59,6 +63,11 @@ namespace GravityWells.UI
             _badge = Line(card.rectTransform, "Badge", -555f, 46f, dim: false, accent: true, bold: true);
             _coins = Line(card.rectTransform, "Coins", -625f, 50f, dim: false, accent: false, bold: true);
             _quest = Line(card.rectTransform, "Quest", -695f, 38f, dim: true, accent: false, bold: false);
+
+            _double = UIFactory.CreateButton(card.rectTransform, "DoubleCoins", Strings.Game.DoubleCoins(0), new Vector2(700f, 104f), style, () => _onDouble(), fontSize: 44f);
+            UIFactory.Place((RectTransform)_double.transform, new Vector2(0.5f, 1f), new Vector2(0f, -815f), new Vector2(700f, 104f));
+            _doubleLabel = UIFactory.LabelOf(_double);
+            _double.gameObject.SetActive(false);
 
             _main = UIFactory.CreateButton(card.rectTransform, "Main", Strings.Game.NextLevel, new Vector2(700f, 128f), style, OnMain, primary: true, fontSize: 56f);
             UIFactory.Place((RectTransform)_main.transform, new Vector2(0.5f, 0f), new Vector2(0f, 300f), new Vector2(700f, 128f));
@@ -111,11 +120,23 @@ namespace GravityWells.UI
             _coins.text = result.Coins > 0 ? Strings.Game.Coins(result.Coins) : string.Empty;
             _quest.text = result.QuestText;
 
+            // Offered whenever the win paid something; one tap on a rewarded ad pays the same again.
+            _double.gameObject.SetActive(result.Coins > 0);
+            _doubleLabel.text = Strings.Game.DoubleCoins(result.Coins);
+
             // The daily is one puzzle: its main button leads home, and the separate Menu button is not needed.
             _mainIsMenu = !result.CanContinue;
             _mainLabel.text = _mainIsMenu ? Strings.Game.Menu : Strings.Game.NextLevel;
             _menu.gameObject.SetActive(!_mainIsMenu);
         }
+
+        public void ShowDoubled(int totalCoins)
+        {
+            _coins.text = Strings.Game.Coins(totalCoins);
+            _double.gameObject.SetActive(false);
+        }
+
+        public bool DoubleVisible => _double.gameObject.activeSelf;
 
         // Back never advances: it replays, so a stray press cannot skip a level.
         public override void OnBack() => _onReplay();

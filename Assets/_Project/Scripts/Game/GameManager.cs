@@ -28,6 +28,7 @@ namespace GravityWells.Game
         public AudioService Audio;
         public EconomyService Economy;
         public AdFlow AdFlow;
+        public GameAnalytics Analytics;      // optional: tests that do not care about events leave it null
         public SaveService Save;
         public System.Action ShowMainMenu;   // set after the app flow exists: the pause card and the result card lead there
     }
@@ -70,6 +71,7 @@ namespace GravityWells.Game
         private float _chargeTimer;
         private int _launches;
         private int _failedLaunches;
+        private bool _coinsDoubled;
         private int _wellsAtLaunch;
         private int _litShown = -1;
         private IGameMode _mode;
@@ -176,13 +178,53 @@ namespace GravityWells.Game
             Load(level);
         }
 
-        public void NextLevel() => Load(_mode.Next());
+        // The one place an interstitial can appear: the player has just tapped "Next level" on a won level. The
+        // policy (levels and seconds since the last ad, level 5+, first-session grace, Remove ads) decides; when
+        // it says no, this loads the next level at once.
+        public void NextLevel()
+        {
+            if (_d.AdFlow == null || LastResult.IsDaily)
+            {
+                Load(_mode.Next());
+                return;
+            }
+            _d.AdFlow.ShowInterstitialThen(LastResult.Level, SecondsOnLevel(), () => Load(_mode.Next()));
+        }
 
-        public void ReplayLevel() => Load(_mode.Replay());
+        public void ReplayLevel()
+        {
+            _d.Analytics?.LevelAbandoned(_level != null ? _level.Level : 0, _launches);
+            Load(_mode.Replay());
+        }
+
+        private float SecondsOnLevel() => _d.Analytics != null ? _d.Analytics.SecondsOnLevel : 0f;
+
+        // "Double your coins" on the result card: the same win coins again for a whole rewarded ad.
+        public void DoubleCoins()
+        {
+            if (_state != GameState.Result || _coinsDoubled || LastResult.Coins <= 0 || _d.AdFlow == null || _d.Economy == null)
+            {
+                return;
+            }
+            _d.AdFlow.WatchRewarded(GrantDoubleCoins, Strings.Game.DoubleCoinsNeedsAd);
+        }
+
+        private void GrantDoubleCoins()
+        {
+            if (_coinsDoubled || _state != GameState.Result)
+            {
+                return;
+            }
+            _coinsDoubled = true;
+            _d.Economy.Earn(LastResult.Coins);
+            _d.Analytics?.CoinsDoubled(LastResult.Coins);
+            _d.Result.ShowDoubled(LastResult.Coins * 2);
+        }
 
         // The player went to a menu: whatever was in progress is dropped (a level never resumes), and nothing runs.
         public void LeaveLevel()
         {
+            _d.Analytics?.LevelAbandoned(_level != null ? _level.Level : 0, _launches);
             Time.timeScale = 1f;
             StopDemo(clearWell: true);
             if (_layout.IsDragging)
@@ -198,8 +240,15 @@ namespace GravityWells.Game
         private void Load(LevelDefinition level)
         {
             Time.timeScale = 1f;
+            _d.Analytics?.LevelAbandoned(_level != null ? _level.Level : 0, _launches);
             _level = level;
+            _d.Analytics?.LevelStarted(_mode != null ? _mode.Key : "none", level.Level, level.Par);
+            if (_mode != null && _mode.Key == "daily")
+            {
+                _d.Analytics?.DailyStarted(level.Level);
+            }
             _layout.Begin(level);
+            _coinsDoubled = false;
             _launches = 0;
             _failedLaunches = 0;
             _usedHint = false;
@@ -477,12 +526,19 @@ namespace GravityWells.Game
             _pendingHint = new PendingHint { Valid = true, Index = index, Position = position };
             if (_d.Economy != null && _d.Economy.TrySpend(Economy.HintCost))
             {
+                _d.Analytics?.HintUsed(_level.Level, paidWithAd: false);
                 RevealHint();
             }
             else if (_d.AdFlow != null)
             {
                 // Short of coins: the same hint for a whole rewarded ad.
-                _d.AdFlow.WatchRewarded(RevealHint, Strings.Game.HintNeedsAd);
+                _d.AdFlow.WatchRewarded(
+                    () =>
+                    {
+                        _d.Analytics?.HintUsed(_level.Level, paidWithAd: true);
+                        RevealHint();
+                    },
+                    Strings.Game.HintNeedsAd);
             }
         }
 
@@ -521,6 +577,7 @@ namespace GravityWells.Game
                 return;
             }
             _usedExtraWell = true;
+            _d.Analytics?.ExtraWellUsed(_level.Level);
             _layout.GrantBonusWell();
             RefreshHud();
         }
@@ -639,8 +696,11 @@ namespace GravityWells.Game
                 return;
             }
 
-            if (_playback.Outcome == FlightOutcome.Won)
+            bool won = _playback.Outcome == FlightOutcome.Won;
+            _d.Analytics?.Launched(_level.Level, _wellsAtLaunch, _playback.GatesLitSoFar(), won);
+            if (won)
             {
+                _d.Analytics?.StopClock();
                 _state = GameState.WinHold;
                 _holdTimer = GameConfig.WinHoldSeconds;
                 _d.Feel.Won();
@@ -662,6 +722,11 @@ namespace GravityWells.Game
         private void ShowResult()
         {
             LastResult = _mode.OnWon(_wellsAtLaunch, _launches, _usedExtraWell, _usedHint);
+            _d.Analytics?.LevelCompleted(_mode.Key, LastResult.Level, LastResult.WellsUsed, LastResult.Par, LastResult.Launches, LastResult.Stars);
+            if (LastResult.IsDaily)
+            {
+                _d.Analytics?.DailyCompleted(LastResult.Level, LastResult.Streak);
+            }
             _d.Result.ShowResult(LastResult);
             _d.Ui.SwitchTo(_d.Result);
             _state = GameState.Result;

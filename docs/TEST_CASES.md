@@ -1,6 +1,6 @@
 # Gravity Wells — Test Cases
 
-Last executed: 2026-11-14 · Build: branch `Phase4-MetaScreens` · Unity 6000.3.15f1 · EditMode suite 461/461 passing (headless, including the 11 Play Mode smoke tests).
+Last executed: 2026-11-15 · Build: branch `Phase5-Services` · Unity 6000.3.15f1 · EditMode suite: 461 non-Play tests passing (run class by class with the Editor open); the 12 Play Mode smoke tests are NOT re-run this phase (see section 5).
 
 **How a case is verified** (the *Via* column):
 
@@ -158,6 +158,19 @@ Measured 2026-11-14 in the Editor. Play rows run the real scene (`GameFlowSmokeT
 | BIL-01 | Remove ads can be bought and restored | Works | Device | ⏳ **cannot be bought yet** (stub purchase service; Play Billing is not wired) |
 
 Fixes found by looking at the renders: the Themes list's "High Contrast" ran into its lock icon (the locked caption is now short, "Level 250").
+
+## 5. Services and analytics (Phase 5)
+
+| ID | Case | Expected | Via | Result |
+|---|---|---|---|---|
+| ADM-01 | The AdMob adapter, consent and ad-id configuration compile against Google Mobile Ads 11.6.0; test ids recognised; the pool of ads never exceeds its size | As specified | Auto `AdMobConfigTests`, `AdPoolPlannerTests` | ✅ |
+| ADM-02 | Network failures are told apart (blocked, offline, other) and each has its own honest message | As specified | Auto `AdFeedbackTests` | ✅ |
+| ANA-01 | Level start, launches, completion (clock stops at the win) and abandon (once, best gates) are logged with the right parameters; a won level never logs abandon | As specified | Auto `GameAnalyticsTests` (3) | ✅ |
+| ANA-02 | File sink rotates and stays capped; composite sink fans out; the exception reporter caps and de-duplicates | As specified | Auto `AnalyticsSinkTests` | ✅ |
+| ADS-02 | Interstitial only at "Next level" and only when the policy allows | As specified | Auto `AdPolicyTests`, `AdFlowTests`, `MonetizationControllerTests` | ✅ (policy); ⏳ through the real scene |
+| DBL-01 | "Double coins" on the result card pays the same coins again once per win, after a whole rewarded ad | Pays once | Play `GameFlowSmokeTests` | ⏳ not exercised yet (no test) |
+| SMK-05 | The 12 Play Mode smoke tests after the Phase 5 changes | Pass | Play | ⏳ **not run**: with the Editor open and not in the foreground Play Mode does not advance frames, so the long ones stall; 3 short ones pass. Needs a run with Unity focused or closed. |
+| ADS-01 | Real AdMob ads on a phone | Test ad shows, reward pays | Device | ⏳ no phone, no Android build yet |
 
 ## Not yet verified on a device
 

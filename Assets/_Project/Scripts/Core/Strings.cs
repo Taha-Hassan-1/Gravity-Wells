@@ -86,6 +86,8 @@ namespace GravityWells.Core
             public const string HintPaid = "Hint";
             public const string HintNeedsAd = "Watch the whole ad to get the hint";
             public const string ExtraWellNeedsAd = "Watch the whole ad to get the extra well";
+            public const string DoubleCoinsNeedsAd = "Watch the whole ad to double your coins";
+            public static string DoubleCoins(int coins) => "Double coins  +" + coins;
             public const string ExtraWell = "Extra well";
             public const string Menu = "Menu";
             public const string Paused = "Paused";

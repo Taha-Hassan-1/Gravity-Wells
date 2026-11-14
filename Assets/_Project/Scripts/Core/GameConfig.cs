@@ -113,6 +113,9 @@ namespace GravityWells.Core
         public const string AdProviderOrder = "admob";
         public const string EditorAdProviderOrder = "stub";
 
+        // The on-device event log keeps this much per file (two files rotate), so it can never fill the phone.
+        public const long LocalEventLogMaxBytes = 256 * 1024;
+
         // --- AdMob ---
         // Google's public TEST app/ad-unit ids: they always fill with a clearly marked test ad and can
         // never earn (or violate policy). Replace all three with the real ids from the AdMob console

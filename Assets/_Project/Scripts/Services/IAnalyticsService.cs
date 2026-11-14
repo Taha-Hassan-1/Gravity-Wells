@@ -25,6 +25,8 @@ namespace GravityWells.Services
         public const string LevelStart = "level_start";
         public const string LevelComplete = "level_complete";
         public const string LevelAbandon = "level_abandon";
+        public const string Launch = "launch";
+        public const string ExtraWellUsed = "extra_well_used";
         public const string HintUsed = "hint_used";
         public const string AssistUsed = "assist_used";
         public const string AdShown = "ad_shown";

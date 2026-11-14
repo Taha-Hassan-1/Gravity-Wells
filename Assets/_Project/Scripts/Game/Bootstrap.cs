@@ -57,21 +57,36 @@ namespace GravityWells.Game
             ui.Style.ButtonPressed = audio.PlayClick;
 
             // External services, all behind interfaces and all registered here and only here. Ad networks are
-            // combined by priority (GameConfig.AdProviderOrder); only the ones named in the order are constructed.
-            // No real network adapter exists until the Services phase, so on a device the order names one that is
-            // not registered and the game honestly says "no ad right now"; the stub is never in the device order
-            // because it always "completes" and would hand out rewards for free.
+            // combined by priority (GameConfig.AdProviderOrder); only the ones named in the order are constructed,
+            // so an SDK that is not in the order is never touched. On an Android device that is real AdMob plus
+            // Google's UMP consent; in the Editor and on any other target the stubs keep every flow testable
+            // without a network. The stub is never in the device order: it always "completes", so it would hand out
+            // rewards for free in a release build. A mediation or publisher SDK is one more Register line here.
             var adRegistry = new AdProviderRegistry();
             adRegistry.Register(StubAdService.ProviderName, () => new StubAdService());
 #if UNITY_ANDROID && !UNITY_EDITOR
+            adRegistry.Register(
+                AdMobAdService.ProviderName,
+                () => new AdMobAdService(GameConfig.AdMobInterstitialUnitId, GameConfig.AdMobRewardedUnitId));
             string adOrder = GameConfig.AdProviderOrder;
+            IConsentService consent = new AdMobConsentService();
 #else
             string adOrder = GameConfig.EditorAdProviderOrder;
+            IConsentService consent = new StubConsentService();
 #endif
             IAdService ads = new WaterfallAdService(adRegistry, AdProviderOrder.Parse(adOrder), Debug.LogWarning);
-            IAnalyticsService analytics = new LogAnalyticsService();
+
+            // Every event goes to the console (development builds) and to a capped file on the device; a real
+            // backend, or a publisher's SDK, is one more sink in this list and nothing in gameplay changes.
+            IAnalyticsService analytics = new CompositeAnalyticsService(
+                new LogAnalyticsService(),
+                new FileAnalyticsService(dataDirectory, utcNow, GameConfig.LocalEventLogMaxBytes));
+            var exceptionReporter = new ExceptionReporter(analytics);
+            Application.logMessageReceived += exceptionReporter.Handle;
+            analytics.LogEvent(AnalyticsEvents.SessionStart, new AnalyticsParam("session", save.Data.SessionCount));
+            var gameAnalytics = new GameAnalytics(analytics, () => Time.realtimeSinceStartup);
             var monetization = new MonetizationController(
-                ads, new StubPurchaseService(), new StubConsentService(), analytics, save, () => Time.realtimeSinceStartup);
+                ads, new StubPurchaseService(), consent, analytics, save, () => Time.realtimeSinceStartup);
             var adFlow = new AdFlow(monetization, ui, () => Time.unscaledTime);
             ui.AdOverlayDismissed = adFlow.Dismiss;
 
@@ -94,7 +109,7 @@ namespace GravityWells.Game
                 ui, ui.Style, gameManager.TogglePause, gameManager.Undo, gameManager.Restart, gameManager.ShowHint,
                 gameManager.Launch);
             var pause = new PausePanel(ui, ui.Style, gameManager.Resume, gameManager.RestartFromPause, gameManager.GoToMenu);
-            var result = new LevelCompletePanel(ui, ui.Style, gameManager.NextLevel, gameManager.ReplayLevel, gameManager.GoToMenu);
+            var result = new LevelCompletePanel(ui, ui.Style, gameManager.NextLevel, gameManager.ReplayLevel, gameManager.GoToMenu, gameManager.DoubleCoins);
             var menu = new MainMenuScreen(appFlow, ui, ui.Style);
             var settings = new SettingsScreen(appFlow, ui, ui.Style);
             var stats = new StatsScreen(appFlow, ui, ui.Style);
@@ -126,6 +141,7 @@ namespace GravityWells.Game
                     Audio = audio,
                     Economy = economy,
                     AdFlow = adFlow,
+                    Analytics = gameAnalytics,
                     Save = save,
                     ShowMainMenu = appFlow.ShowMainMenu,
                 });
