@@ -25,7 +25,7 @@ namespace GravityWells.Meta
         public List<string> FrozenDatesUtc = new List<string>();   // days a freeze covered, for the calendar
         public int SessionCount;                                   // launches so far; ad pacing treats session 1 more gently
         public bool TutorialSeen;                                  // the wordless level-1 demo has been dismissed
-        public bool HowToPlaySeen;
+        public bool HowToPlaySeen;                                 // the How to play pages have been read once
         public bool RemoveAdsPurchased;
         public bool SoundOn = true;
         public bool HapticsOn = true;                              // shown to players as "Vibrations"

@@ -24,3 +24,4 @@ A feature doc and its test-case rows are written in the same change as the featu
 | [13](13-level1-lesson.md) | The level-1 lesson | Core, Game, UI | 4 |
 | [14](14-services-and-analytics.md) | Services, ads and analytics | Services, Game, UI | 5 |
 | [15](15-release-build-and-soak.md) | Release build and soak test | Editor | 6 |
+| [16](16-tutorial.md) | Tutorial: crash mark, well links, lessons, How to play | Core, Game, UI | 7 |

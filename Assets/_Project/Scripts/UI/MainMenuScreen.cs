@@ -75,6 +75,9 @@ namespace GravityWells.UI
             AddNav("Themes", Strings.Menu.Themes, "themes", -navWidth - 20f, () => _flow.ShowThemes(), style);
             AddNav("Stats", Strings.Menu.Stats, "stats", 0f, () => _flow.ShowStats(), style);
             AddNav("Settings", Strings.Menu.Settings, "settings", navWidth + 20f, () => _flow.ShowSettings(), style);
+
+            Button how = UIFactory.CreateButton(Content, "HowToPlay", Strings.Tutorial.HowToPlay, new Vector2(420f, 96f), style, () => _flow.OpenHowToPlay(), fontSize: 40f);
+            UIFactory.Place((RectTransform)how.transform, new Vector2(0.5f, 0f), new Vector2(0f, 230f), new Vector2(420f, 96f));
         }
 
         private void AddNav(string name, string label, string icon, float x, UnityEngine.Events.UnityAction onClick, UIStyle style)

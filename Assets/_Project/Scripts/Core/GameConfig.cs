@@ -83,6 +83,11 @@ namespace GravityWells.Core
         public const float GatePopSeconds = 0.22f;
         public const float WellSettleSeconds = 0.28f;
         public const float WellRingPeriodSeconds = 1.6f;     // one ring travelling in (or out) takes this long
+
+        // How strong a pull must be (acceleration, field units/s^2) to count as a full-strength bend when the
+        // tutorial draws a well's link to the line: the pull of a well 0.15 of the field away.
+        public const float InfluenceReferenceDistance = 0.15f;
+        public const float InfluenceFloor = 0.12f;           // links to wells that barely matter are drawn this faint, never invisible
         public const float BurstSeconds = 0.8f;
         public const float WinPingSpacingSeconds = 0.12f;    // gates ping one after another when a level is won
         public const int FailsBeforeHintPulse = 3;           // the hint button pulses once after this many failed launches

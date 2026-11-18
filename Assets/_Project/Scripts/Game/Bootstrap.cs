@@ -99,6 +99,8 @@ namespace GravityWells.Game
             var asteroids = new AsteroidViews(boardRoot);
             var ship = new ShipView(boardRoot);
             var hint = new HintView(boardRoot);
+            var links = new WellLinkView(boardRoot);
+            var previewCrash = new CrashMarkView(boardRoot);
             var trail = new TrailView(boardRoot);
             var burst = new BurstView(boardRoot);
             var mark = new CrashMarkView(boardRoot);
@@ -114,8 +116,9 @@ namespace GravityWells.Game
             var settings = new SettingsScreen(appFlow, ui, ui.Style);
             var stats = new StatsScreen(appFlow, ui, ui.Style);
             var themesScreen = new ThemesScreen(appFlow, ui, ui.Style);
+            var howToPlay = new HowToPlayScreen(appFlow, ui, ui.Style);
             var feel = new FeelController(audio, haptics, field, path, wells, gates, ship, trail, burst, mark, hud);
-            foreach (UIScreen screen in new UIScreen[] { hud, pause, result, menu, settings, stats, themesScreen })
+            foreach (UIScreen screen in new UIScreen[] { hud, pause, result, menu, settings, stats, themesScreen, howToPlay })
             {
                 ui.AddScreen(screen);
             }
@@ -136,6 +139,8 @@ namespace GravityWells.Game
                     Asteroids = asteroids,
                     Ship = ship,
                     Hint = hint,
+                    Links = links,
+                    PreviewCrash = previewCrash,
                     Feel = feel,
                     Haptics = haptics,
                     Audio = audio,
@@ -147,6 +152,7 @@ namespace GravityWells.Game
                 });
             appFlow.Init(gameManager, ui, themes, save, progression, economy, quests, campaign, daily, haptics, audio, monetization);
             appFlow.SetScreens(menu, settings, stats, themesScreen);
+            appFlow.SetHowToPlay(howToPlay);
 
             ui.FinishBuild(); // the toast and the ad overlay go on top of every screen
 

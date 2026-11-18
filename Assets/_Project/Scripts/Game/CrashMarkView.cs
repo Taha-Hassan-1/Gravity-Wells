@@ -44,6 +44,8 @@ namespace GravityWells.Game
             Paint(0f);
         }
 
+        public void MoveTo(Vector2 position) => _root.localPosition = new Vector3(position.x, position.y, 0f);
+
         public void Hide()
         {
             _a.enabled = false;

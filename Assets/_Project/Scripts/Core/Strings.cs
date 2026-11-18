@@ -79,6 +79,42 @@ namespace GravityWells.Core
             public static string RowLocked(int level) => "Level " + level;
         }
 
+        // The teaching text: short lines, one idea each. The lesson banner shows one per early level; the
+        // How to play pages repeat them and add the push.
+        public static class Tutorial
+        {
+            public const string TooClose = "Too close: the ship would crash into that well. Move it off the line.";
+            public const string GotIt = "Got it";
+            public const string Next = "Next";
+            public const string HowToPlay = "How to play";
+            public const string Lesson1 = "Drag a well next to the dotted line. The line bends toward it.";
+            public const string Lesson2 = "Closer wells pull harder. Put one where the line should turn.";
+            public const string Lesson3 = "Every well adds its own pull. The dots show which well bends the line where.";
+
+            public static string ForLevel(int level)
+            {
+                return level == 1 ? Lesson1 : level == 2 ? Lesson2 : level == 3 ? Lesson3 : string.Empty;
+            }
+
+            public static readonly string[] PageTitles =
+            {
+                "Fly through the gates",
+                "Wells bend the line",
+                "Close is strong",
+                "Wells can push",
+                "More wells, more pull",
+            };
+
+            public static readonly string[] PageBodies =
+            {
+                "The ship flies along the dotted line. Light every gate and reach the goal to win.",
+                "Drag a well onto the field. A pulling well bends the line toward it. The line redraws as you drag.",
+                "A well near the line bends it a lot. A far one barely matters. Touch a well and the ship crashes, so keep the line clear of the centre.",
+                "A pushing well, shown as a broken ring, bends the line away from it. Pushers appear in later levels.",
+                "Every well adds its own pull. The flowing dots link each well to the spot where it bends the line. Drag one well and watch its dots.",
+            };
+        }
+
         public static class Game
         {
             public const string NoWellsLeft = "No wells left. Take one back first.";

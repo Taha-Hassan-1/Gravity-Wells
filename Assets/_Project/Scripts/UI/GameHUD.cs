@@ -103,6 +103,14 @@ namespace GravityWells.UI
             UIFactory.Place(adChip.rectTransform, new Vector2(1f, 1f), new Vector2(10f, 14f), new Vector2(76f, 40f));
             _extraWell.gameObject.SetActive(false);
 
+            // The lesson line of the first levels, under the counters: one sentence, never in the way of a touch.
+            Image banner = UIFactory.CreateBadge(Content, "Lesson", new Vector2(980f, 128f), style, out _lessonText);
+            _lessonText.fontSize = 38f;
+            _lessonText.enableWordWrapping = true;
+            UIFactory.Place(banner.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -246f - UITokens.SpaceM), new Vector2(980f, 128f));
+            _lesson = banner.gameObject;
+            _lesson.SetActive(false);
+
             // The ghost finger of the level-1 lesson, above everything else on the screen.
             RectTransform hand = UIFactory.CreateRect(Root.transform, "TutorialHand");
             UIFactory.Place(hand, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(HandSize, HandSize));
@@ -116,6 +124,21 @@ namespace GravityWells.UI
             _handDot.raycastTarget = false;
             _hand = hand;
             _hand.gameObject.SetActive(false);
+        }
+
+        private TextMeshProUGUI _lessonText;
+        private GameObject _lesson;
+
+        public bool LessonVisible => _lesson.activeSelf;
+
+        public void SetLesson(string text)
+        {
+            bool any = !string.IsNullOrEmpty(text);
+            if (any)
+            {
+                _lessonText.text = text;
+            }
+            _lesson.SetActive(any);
         }
 
         private const float HandSize = 150f;

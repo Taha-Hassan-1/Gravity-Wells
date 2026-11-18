@@ -31,6 +31,7 @@ namespace GravityWells.Game
         private UIScreen _settings;
         private UIScreen _stats;
         private UIScreen _themesScreen;
+        private HowToPlayScreen _howToPlay;
         private float _lastMenuBack = -10f;
 
         public void Init(
@@ -51,6 +52,8 @@ namespace GravityWells.Game
             _audio = audio;
             _monetization = monetization;
         }
+
+        public void SetHowToPlay(HowToPlayScreen screen) => _howToPlay = screen;
 
         public void SetScreens(UIScreen menu, UIScreen settings, UIScreen stats, UIScreen themes)
         {
@@ -83,8 +86,39 @@ namespace GravityWells.Game
 
         public void ShowThemes() => _ui.SwitchTo(_themesScreen);
 
+        public void ShowHowToPlay() => _ui.SwitchTo(_howToPlay);
+
+        // The menu button: the pages, then back to the menu.
+        public void OpenHowToPlay() => _howToPlay.Open(thenPlay: false);
+
+        public void FinishHowToPlay(bool thenPlay)
+        {
+            if (!_save.Data.HowToPlaySeen)
+            {
+                _save.Data.HowToPlaySeen = true;
+                _save.Save();
+            }
+            if (thenPlay)
+            {
+                _game.StartMode(_campaign);
+            }
+            else
+            {
+                ShowMainMenu();
+            }
+        }
+
         // Continue the campaign from the level the player has reached.
-        public void Play() => _game.StartMode(_campaign);
+        // A brand-new player reads the pages once first; everyone else goes straight to the level.
+        public void Play()
+        {
+            if (!_save.Data.TutorialSeen && !_save.Data.HowToPlaySeen)
+            {
+                _howToPlay.Open(thenPlay: true);
+                return;
+            }
+            _game.StartMode(_campaign);
+        }
 
         public void PlayDaily() => _game.StartMode(_daily);
 
@@ -198,3 +232,4 @@ namespace GravityWells.Game
         }
     }
 }
+

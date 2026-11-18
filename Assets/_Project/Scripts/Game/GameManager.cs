@@ -23,6 +23,8 @@ namespace GravityWells.Game
         public AsteroidViews Asteroids;
         public ShipView Ship;
         public HintView Hint;
+        public WellLinkView Links;
+        public CrashMarkView PreviewCrash;   // where the line on screen ends in a crash, shown while planning
         public FeelController Feel;
         public HapticService Haptics;
         public AudioService Audio;
@@ -72,6 +74,8 @@ namespace GravityWells.Game
         private int _launches;
         private int _failedLaunches;
         private bool _coinsDoubled;
+
+        private bool _crashBanner;      // the banner currently says "too close" instead of the level's lesson
         private int _wellsAtLaunch;
         private int _litShown = -1;
         private IGameMode _mode;
@@ -100,6 +104,8 @@ namespace GravityWells.Game
         public Trajectory Trajectory => _trajectory;
         public FlightPlayback Playback => _playback;
         public int Launches => _launches;
+        public bool PreviewCrashVisible => _d.PreviewCrash.Visible;
+        public int LinksShown => _d.Links.Shown;
         public bool IsLevelComplete => _state == GameState.Result || _state == GameState.WinHold;
         public LevelResult LastResult { get; private set; }
         public Vector2 ShipPosition => _d.Ship.Position;
@@ -152,10 +158,13 @@ namespace GravityWells.Game
             _d.Asteroids.ApplyTheme(colors);
             _d.Ship.ApplyTheme(colors);
             _d.Hint.ApplyTheme(colors);
+            _d.Links.ApplyTheme(colors);
+            _d.PreviewCrash.ApplyTheme(colors);
             _d.Feel.ApplyTheme(colors);
             if (_level != null)
             {
                 _d.Wells.Sync(_layout);
+                _d.Links.Sync(_layout, _trajectory);
             }
         }
 
@@ -234,6 +243,9 @@ namespace GravityWells.Game
             _drag?.SetEnabled(false);
             _d.Audio.StopWhoosh();
             _d.Hud.HideHand();
+            _d.Links.SetVisible(false);
+            _d.PreviewCrash.Hide();
+            _d.Hud.SetLesson(string.Empty);
             _state = GameState.Menu;
         }
 
@@ -260,6 +272,8 @@ namespace GravityWells.Game
             _d.Hud.SetExtraWellOffer(false);
             _d.Hud.HideHand();
             _d.Field.ShowLevel(level);
+            _crashBanner = false;
+            _d.Hud.SetLesson(_mode != null && _mode.Key == "campaign" ? Strings.Tutorial.ForLevel(level.Level) : string.Empty);
             _d.Gates.ShowLevel(level);
             _d.Asteroids.ShowLevel(level);
             _d.Ship.PlaceOnPad(level);
@@ -369,6 +383,8 @@ namespace GravityWells.Game
             _drag.SetEnabled(true);
             _d.Hud.SetControlsEnabled(true);
             _d.Ship.PlaceOnPad(_level);
+            _d.Links.SetVisible(true);
+            ShowPreviewCrash();
             RefreshHud();
         }
 
@@ -397,6 +413,8 @@ namespace GravityWells.Game
             _d.Field.SetGoalReached(winning);
             _d.Gates.SetLitMask(_trajectory.GatesLitMask);
             _d.Wells.Sync(_layout);
+            _d.Links.Sync(_layout, _trajectory);
+            ShowPreviewCrash();
             if (_d.Hint.Visible)
             {
                 _d.Hint.Hide();
@@ -404,6 +422,49 @@ namespace GravityWells.Game
             _d.Feel.ClearMarks();
             _d.Feel.PreviewChanged(_trajectory, celebrate);
             RefreshHud();
+        }
+
+        // A line that runs into a well, a rock or off the field ends in a cross while planning, so the player
+        // sees "this crashes" before launching rather than a line that just stops. The first time it is a well,
+        // a short message says why (a well placed on the line pulls the ship straight into itself).
+        private void ShowPreviewCrash()
+        {
+            bool planning = _state == GameState.Planning || _state == GameState.Menu;
+            FlightOutcome outcome = _trajectory.Outcome;
+            bool crashed = outcome == FlightOutcome.HitWell || outcome == FlightOutcome.HitAsteroid;
+            if (!planning || !crashed || _trajectory.Count == 0)
+            {
+                _d.PreviewCrash.Hide();
+                RestoreLesson();
+                return;
+            }
+
+            Vector2 end = _trajectory.Points[_trajectory.Count - 1];
+            if (!_d.PreviewCrash.Visible)
+            {
+                _d.PreviewCrash.Show(end);
+            }
+            else
+            {
+                _d.PreviewCrash.MoveTo(end);
+            }
+
+            if (outcome == FlightOutcome.HitWell && _layout.Count > 0)
+            {
+                _crashBanner = true;
+                _d.Hud.SetLesson(Strings.Tutorial.TooClose); // the same place the lesson line lives, so the two never overlap
+            }
+        }
+
+        // Puts the level's own lesson line back once the line stops crashing.
+        private void RestoreLesson()
+        {
+            if (!_crashBanner || _level == null)
+            {
+                return;
+            }
+            _crashBanner = false;
+            _d.Hud.SetLesson(_mode != null && _mode.Key == "campaign" ? Strings.Tutorial.ForLevel(_level.Level) : string.Empty);
         }
 
         // The line on screen: the real buffer, or its glide from the previous one.
@@ -594,6 +655,9 @@ namespace GravityWells.Game
             StopDemo(clearWell: false);
             _launches++;
             _wellsAtLaunch = _layout.Count;
+            _d.Links.SetVisible(false);
+            _d.PreviewCrash.Hide();
+            _d.Hud.SetLesson(string.Empty);
             _d.Hint.Hide();
             _drag.SetEnabled(false);
             _d.Hud.SetControlsEnabled(false);
@@ -628,6 +692,8 @@ namespace GravityWells.Game
 
             float dt = Time.deltaTime;
             _d.Feel.Tick(dt);
+            _d.Links.Tick(dt);
+            _d.PreviewCrash.Tick(dt);
             TickEase(dt);
 
             switch (_state)

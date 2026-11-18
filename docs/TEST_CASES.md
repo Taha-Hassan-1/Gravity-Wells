@@ -1,6 +1,6 @@
 # Gravity Wells — Test Cases
 
-Last executed: 2026-11-15 · Build: branch `Phase6-ReleaseBuild` · Unity 6000.3.15f1 · EditMode suite 473/473 passing (Phase 5 run; Phase 6 added no tests) · AAB 28.3 MB · soak 1,000 levels clean.
+Last executed: 2026-11-19 · Build: branch `Phase7-Tutorial` · Unity 6000.3.15f1 · EditMode suite 479/479 passing (465 class by class, 14 Play Mode smoke tests with Unity in the foreground).
 
 **How a case is verified** (the *Via* column):
 
@@ -182,6 +182,16 @@ Fixes found by looking at the renders: the Themes list's "High Contrast" ran int
 | SOK-02 | 1,000 levels through the real game with rendering on | no failure | Live `SoakTest` | ✅ 0 failures, 0 errors, 484 s |
 | BLD-03 | Cold start under 2 s; the APK installs and runs | Yes | Device | ⏳ no phone connected |
 | BLD-04 | Release signing | Play-ready | Owner | ⏳ debug-signed; owner's keystore variables |
+
+## 7. Tutorial (Phase 7)
+
+| ID | Case | Expected | Via | Result |
+|---|---|---|---|---|
+| TUT-01 | Each well's link point is the nearest point of the line; nearer wells are stronger; strength stays between the floor and 1; every well has its own link | As specified | Auto `WellInfluenceTests` (4) | ✅ |
+| TUT-02 | A well put on the line makes the preview end in a cross and says why; clearing it removes both; links appear for every well; the lesson steps aside at launch | As specified | Play `GameFlowSmokeTests` | ✅ |
+| TUT-03 | How to play opens from the menu, pages back and leaves; a brand-new player reads it before level 1 | As specified | Play `GameFlowSmokeTests` | ✅ |
+| TUT-04 | The new screens and banner are laid out (no overlap) | Readable | Offscreen renders `Logs/Screens/30`–`34` | ✅ after fixes (crash message overlapped the banner; card text under its button) |
+| TUT-05 | A new player understands gravity after the lessons | Yes | Human | ⏳ **needs the phone and a new player** |
 
 ## Not yet verified on a device
 

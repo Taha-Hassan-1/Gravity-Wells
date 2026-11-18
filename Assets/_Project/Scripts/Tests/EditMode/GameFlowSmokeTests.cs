@@ -186,6 +186,60 @@ namespace GravityWells.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheTutorialAids_LessonLinksAndCrashMark_AppearAndClear()
+        {
+            GameManager game = PlayingGame();
+            yield return null;
+            var hud = (GameHUD)Ui(game).Current;
+            Assert.IsTrue(hud.LessonVisible, "level 1 teaches in a line of text");
+            yield return WaitRealtime(0.4);
+            SaveShot("30-lesson-banner");
+            Assert.IsFalse(game.PreviewCrashVisible);
+
+            // A well put right on the line pulls the ship into itself: the line must end in a cross.
+            Vector2 onTheLine = game.Trajectory.Points[game.Trajectory.Count / 3];
+            Assert.GreaterOrEqual(game.Layout.Place(WellKind.Attractor, onTheLine), 0);
+            game.Resimulate();
+            Assert.AreEqual(FlightOutcome.HitWell, game.Trajectory.Outcome);
+            Assert.IsTrue(game.PreviewCrashVisible, "a crashing line ends in a mark before launch");
+            Assert.AreEqual(1, game.LinksShown, "every well has a link to the line");
+            yield return WaitRealtime(0.5);
+            SaveShot("31-crash-preview");
+
+            game.Restart();
+            yield return null;
+            Assert.IsFalse(game.PreviewCrashVisible, "clearing the wells clears the mark");
+            Assert.AreEqual(0, game.LinksShown);
+
+            PlaceTheSolution(game);
+            Assert.AreEqual(1, game.LinksShown);
+            yield return WaitRealtime(0.6);
+            SaveShot("34-links");
+            game.Launch();
+            Assert.IsFalse(hud.LessonVisible, "the lesson line steps aside once the ship goes");
+        }
+
+        [UnityTest]
+        public IEnumerator HowToPlay_OpensFromTheMenu_PagesForwardAndBack()
+        {
+            GameManager game = Game();
+            AppFlow flow = Flow(game);
+            Assert.IsInstanceOf<MainMenuScreen>(Ui(game).Current);
+            yield return WaitRealtime(0.3);
+            SaveShot("33-menu-with-how-to-play");
+            flow.OpenHowToPlay();
+            yield return null;
+            var pages = Ui(game).Current as HowToPlayScreen;
+            Assert.IsNotNull(pages, "the menu button opens the pages");
+            Assert.AreEqual(0, pages.Page);
+            yield return WaitRealtime(0.4);
+            SaveShot("32-how-to-play");
+            Ui(game).Current.OnBack();
+            Assert.IsInstanceOf<MainMenuScreen>(Ui(game).Current, "Back on the first page leaves");
+            Assert.IsTrue(flow.Save.Data.HowToPlaySeen);
+        }
+
+        [UnityTest]
         public IEnumerator AFailedLaunch_KeepsTheWells_AndCostsOnlyTheCount()
         {
             GameManager game = PlayingGame();
@@ -626,7 +680,10 @@ namespace GravityWells.Tests
             GameManager game = Game();
             AppFlow flow = Flow(game);
             flow.Save.Data.TutorialSeen = false;
+            flow.Save.Data.HowToPlaySeen = false;
             flow.Play();
+            Assert.IsInstanceOf<HowToPlayScreen>(Ui(game).Current, "a brand-new player reads the pages before the first level");
+            flow.FinishHowToPlay(thenPlay: true);
             Assert.IsTrue(game.DemoActive, "a new player is shown the lesson on level 1");
 
             // The ghost finger carries a well across, the line bends through the gate, then it starts again.
